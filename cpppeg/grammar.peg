@@ -1,0 +1,156 @@
+# '↑' is the 'cut' operator which prevents backtracking after this point,
+# forcing the parser to commit to this as the singular resolution for the
+# current text.
+
+# -----------------------------------------------------------------------------
+# Top-level rule for the grammar is that a document must contain zero or more
+# definitions.
+
+File
+	<-	Definition*
+
+
+# -----------------------------------------------------------------------------
+# Helpers and configuration
+
+# Define whitespace rules
+%whitespace
+	<-	(SPACE / LINE_COMMENT / BLOCK_COMMENT)*
+
+~SPACE	# Your basic ascii whitespace characters
+	<- [ \t\r\n]
+~LINE_COMMENT	# C++-style line comments
+	 <- '//' [^\n]*	 # \n isn't part of the rule, so comment on last line is ok
+~BLOCK_COMMENT	# C-style nestable block comments
+	<- '/*' (BLOCK_COMMENT / !'*/' .)* '*/'^close_comment
+
+# Define what a 'word' is so cpp-peg can handle error recovery and such.
+%word       <- [A-Za-z0-9_]+
+
+# We typically don't care about commas, so we should discard them from the AST.
+~COMMA   <- ','	# don't capture commas
+
+# Declare a macro for lists of things with optional trailing commas.
+List(T)     <- (T COMMA?)
+
+
+# -----------------------------------------------------------------------------
+# Recovery labels
+#
+# CppPeg uses these to let you create custom errors for particular conditions,
+
+# Reports that a block comment was opened but never closed; I couldn't figure
+# a way to report where the comment started yet, though.
+close_comment
+	<- '' { error_message "unterminated block comment (missing '*/'?)" }
+
+# We don't allow multi-line strings.
+close_quote
+	<- '' { error_message "missing close-quote on string before end of line" }
+
+# Not having any members in an enum is an error condition.
+enum_members
+	<- '' { error_message "enum must contain at least one member." }
+
+parent_type
+    <- '' { error_message "missing typename between parent operator (':') and type body ('{'); either remove the ':' or add the name of the parent you want to inherit from" }
+
+sized_array
+	<- Integer { error_message "arrays are dynamic, specifying the size is not allowed. use [] instead of [N]" }
+
+
+# -----------------------------------------------------------------------------
+# Terminals and literal types
+
+# Identifier tokens must start with a letter or underscore and can be multiple
+# characters long. We should really set an upper limit...
+IDENT_PREFIX <- < [A-Za-z_] >
+IDENT_CONT   <- < [A-Za-z0-9_] >
+Identifier	 <- < IDENT_PREFIX IDENT_CONT{0,254} >
+
+TRUE		 <- 'true'
+FALSE		 <- 'false'
+Bool	 	 <- TRUE / FALSE
+
+DIGIT	 	 <- [0-9]
+SIGN	 	 <- [+-]
+DECIMAL		 <- '.'
+# Floats can be in the form of '1.0', '+1.0, '-1.0', '0.', '.1', or '-.01' etc
+# Described relative to an integer to assist backtracker.
+Float <- < Integer DECIMAL DIGIT* / SIGN? DECIMAL DIGIT+ >
+Integer <- < SIGN? DIGIT+ >
+
+# We only support single-line, double-quoted strings.
+# I considered hoisting them to 'QUOTE' terminal, but that makes the escape
+# pattern a little weird.
+String
+	<- < '"' ( '\\' [\"\\A-Za-z0-9] / [^\\\"\n] )* ('"'^close_quote) >
+
+EnumValue    <- < EnumScope ScopeOperator ↑ EnumField >
+EnumScope    <- < Identifier >
+ScopeOperator <- '::'
+EnumField    <- < Identifier >
+
+
+# -----------------------------------------------------------------------------
+# Production Rules
+
+# Two kinds of definition: Enumerators and Types
+Definition
+	<- EnumDefinition
+	/  TypeDefinition
+
+
+#### Enum Definitions
+# These let you create an auto-incrementing series of numeric constants,
+# which start at zero. Unlike C etc, we don't let you manipulate the values or
+# specify multiple names for a single value.
+
+EnumDefinition
+	<- 'enum' ↑  # we're committed to this branch now
+		 Identifier '{' ↑ EnumMembers '}'
+
+# The member list is just a list of identifiers that are optionally followed by
+# a single comma, including an optional trailing comma:
+#   enum E { A B, C, D, }
+
+EnumMembers <- List(Identifier)+^enum_members  # issue enum_members error if missing
+
+#### Type definitions
+# These define a concrete data type, which can inherit fields from a 'parent' type
+# to extend it. It's valid for a type to have no members, it could be serving
+# either as a common base type or a named derivative that doesn't need unique
+# members.
+
+TypeDefinition <- 'type' ↑ $typename<Identifier> TypeParent? '{' List(TypeMember)* '}'
+TypeParent <- ':' ↑ $parentname<Identifier>^parent_type
+TypeMember <- TypeName $fieldname<FieldName> IsArray? MemberDefault?
+TypeName <- Identifier
+FieldName <- Identifier
+IsArray <- '[' ↑ (RejectInteger)? ']'
+MemberDefault <- '=' ↑ Value
+
+# This rule expects there to be something-that-is-not-an-integer ahead, but if
+# there is an integer, makes it an error and then discards it.
+~RejectInteger
+	<- ( (!Integer) ^ sized_array )  # '^' = or else, so if there IS an integer...
+
+Value <- Scalar / Compound
+
+Scalar
+	<-	Bool
+	/	Float
+	/	Integer
+	/	String
+	/	EnumValue
+
+Compound <- Object / Array
+
+Object <- '{' ObjectMember (ObjectMember)* '}'
+ObjectMember
+	<- FieldName '=' ↑ Value COMMA?
+
+Array
+	<- '{' ArrayElement+ '}'
+ArrayElement
+	<- Object COMMA?
