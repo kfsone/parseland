@@ -1,0 +1,262 @@
+(* Kfsone's ParseLand "typedef" grammar            *)
+(* This is a pseudo-ebnf definition of the grammar *)
+(* See https://github.com/kfsone/parseland         *)
+
+
+(* Root: A document contains one or more 'definition'. *)
+
+root
+  = definition*
+;
+
+
+(*
+  Definition declares a type - either a user-defined type (struct)
+  or an enumerator type.
+*)
+definition
+  = enum-definition
+  | type-definition
+;
+
+
+(*
+  EnumDefinition declares a type name which contains values that
+  have automatically incremented integer values, e.g.
+  enum States { Off, On, Broken }
+*)
+enum-definition
+  = "enum" typename:identifier "{" member:identifier+,? "}"
+;
+
+
+(*
+  TypeDefinition declares a user-defined type, class, struct, or
+  record - depending on your programming background.
+
+  Types may be extend a 'parent' type by adding additional fields.
+*)
+type-definition
+  = "type" typename:identifier parent:type-parent
+    "{"
+        member:member-definition*,?
+    "}"
+;
+
+
+(*
+  TypeParent is an optional attribute of a type definition that
+  indicates the type inherits a set of fields (and parentage)
+  from another user-defined type.
+*)
+parent
+  = ":" typename:identifier
+  | (* empty *)
+;
+
+
+(*
+  MemberDefinition describes the properties of a field belonging
+  to a user-defined type.
+  
+  Each member has:
+   - type - either a built-in or a user-defined type, 
+   - name - what it will be accessed as,
+   - arity - whether or not it is an array - limited to user types,
+   - default value - optional
+
+  e.g.
+  	int i
+  	string s = "Hello"
+  	Connection mConnections[] = { { host="skynet" online=true } }
+*)
+member-definition
+  = typename:identifier fieldname:identifier
+      is_array:has-arity
+      default:default-value
+;
+
+
+(*
+  HasArity indicates whether a field is a scalar value or a dynamic
+  array. Following the name of a member with the tokens '[' and ']'
+  will result in the value being defined as an array.
+*)
+has-arity
+  = "[" "]"   => { arity:true  }
+  | (*empty*) => { arity:false }
+;
+
+
+(*
+  DefaultValue allows you to specify or override the default value
+  that a field will have when objects of this type are created.
+  Specific to the member-definition production.
+*)
+default-value = "=" value | (*empty*);
+
+
+(*
+  Value is how concrete values are represented, being either one of
+  the built-in/atom types or an instance of a user-defined type
+  represented as a compound (either an object or an array-of-object).
+*)
+value
+	= boolean
+	| float
+	| integer
+	| string-literal
+	| compound
+;
+
+
+(*
+  Compound represents either an array of user-defined type values
+  (objects) or a single instance of a user-defined type. Both array
+  and object use the same '{'...'}' token, this gives the parser a
+  little twist when it comes to type resolution, but there are only
+  a small number of varieties that are actually valid in the language.
+  
+  - An array can only contain objects,
+  - All elements of an object must be fieldname=value pairs,
+  - An empty array vs an empty object is an unimportant detail at parse,
+  
+   {}  <- compound (i.e we can't tell until we know the type of the lhs)
+   {{}} <- array of objects
+   {x=y} <- object
+   {{{}}} <- invalid, cannot have an array of arrays
+   {x=y {}}  <- invalid, mix of array/object components
+*)
+compound
+  = "{" "}"
+  | array					(* { { ... } } *)
+  | user-defined-object		(* { x = y }   *)
+;
+
+
+(*
+  Array represents a braces-enclosed list of user-defined object values. An
+  empty list is considered a "compound", because without members we cannot
+  distinguish array-vs-object, so "compound" is the mutual equivalent.
+)
+array
+  = "{" user-defined-object+,? "}"	(* optional trailing commas *)
+;
+
+
+(*
+  UserDefinedObject represents a concrete instance of a type defined in the
+  grammar, either in the current document, or elsewhere, denoted by a list
+  of <field name> '=' <value>
+
+  e.g.
+
+      { name = "Oliver", callsign = "kfsone", friendly = true }
+
+  It is legal to describe a default object using "{" "}" but this would be
+  impossible to distinguish from an array, so instead we treat that as a
+  third entity type, "compound", and require at least 1 member for it to
+  be promoted to a udo.
+*)
+user-defined-object
+  = "{" member-value+,? "}"
+  ;
+
+
+(*
+  MemberValue represents the elements of a user-defined-object value
+  representation, that is: fieldname = value. Unlike the default value of
+  a type definition, the value here is not optional.
+*)
+member-value
+  = name:identifier "=" value
+  ;
+
+
+(* ---------------------------------------------------------------------------
+ * Terminals
+ * --------------------------------------------------------------------------- *)
+
+
+(*
+  Identifiers are used for names of types, keys, etc, and may consist of any
+  sequence of 1+ letters, numbers or underscores, so long as the first
+  character is a letter or underscore.
+*)
+identifier    = [A-Za-z_][A-Za-z0-9_]*;
+
+(* The true/false literals. *)
+boolean       = "true" | "false";
+
+(*
+  Floating point values are signed, decimal values, sign being optional. No
+  fancy scientific notation here tho.
+  e.g
+      0.
+      .0
+      +5.1
+      -00001.100000
+*)
+float		  = [+-]? ([0-9]+\.[0-9]*|\.[0-9]+);
+
+
+(* Integer represents whole numbers, with optional sign. *)
+integer       = [+-]? [0-9]+;
+
+
+(*
+  String literals are basic, single-line, double-quoted strings that may
+  contain an escaped quote using backslash (\") or an escaped backslash
+  (\\), but otherwise we pay no attention to much inside the string.
+*)
+string-literal
+	=
+		'"'
+		( 
+			(* any character that is not newline, quote, or backslash *)
+			[^\n"\\]
+	
+			(* or a backslash followed by letters, digits, underscore etc,
+		 	you can't escape non-printable characters like newline *)
+		|	'\\' ('"' | '\\' | [A-Za-z0-9_]*)
+	
+		(* any number of repetitions.. *)
+		)*  
+
+		(* must be followed by a close quote or else we raise an error *)
+		(
+			'"'		(* close quote *)
+		|	error "@3: unterminated string literal started at @1"
+		)
+;
+		
+
+(*
+  WHITESPACE defines terminals that will be discarded during the parse,
+  in our case these are simple whitespace characters and line/block
+  comments; note that these only apply outside other tokens, so for
+  example we don't ignore '//' inside a string literal.
+*)
+WHITESPACE    = ' ' | '\t' | '\r' | '\n' | LINE_COMMENT | BLOCK_COMMENT;
+
+(* C++-style line comments. *)
+LINE_COMMENT  = "//" [^\n]*;
+
+(* Nestable, C-style block comments. *)
+BLOCK_COMMENT
+	=	"/*"
+		(
+			(* nested block comment *)
+			BLOCK_COMMENT
+
+			(* any non '/' or '*' charaters are fine *)
+		|	[^*/]
+		|	('/' (?!'*'))		(* slash so long as not followed by star, that would be '/*' *)
+		|	('*' (?!'/'))		(* star so long as the next isn't '/', that would be '*/' *)
+		)* 						(* repeat any number of these *)
+		(
+			"*/"
+		| error "@1: unterminated block comment at end of file, started here @1"
+		)
+;
+

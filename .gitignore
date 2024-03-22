@@ -1,0 +1,15 @@
+.vs
+.vscode
+.idea
+.DS_Store
+out/
+build/
+build-*/
+ninja/
+ninja-*/
+*.o
+*.a
+*.la
+*.exe
+*.app
+*.log
