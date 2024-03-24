@@ -175,8 +175,7 @@ TResult Parser::parse_string()
 		if (peek(end) == '"')
 			return TResult{make_token(Token::Type::String, end + 1)};
 
-		// Shorten to just this line.
-		current_ = current_.substr(0, end);
+		return TResult{make_token(Token::Type::String, end), "unterminated string"};
 	}
 
 	return TResult{make_token(Token::Type::String, current_.size()), "unterminated string"};
@@ -248,7 +247,7 @@ TResult Parser::parse_word()
 	}
 
 	if (len > 255)
-		return TResult{make_token(Token::Type::Invalid, len), "word too long (over 255 characters)"};
+		return TResult{make_token(Token::Type::Word, len), "word too long (over 255 characters)"};
 
 	return TResult{make_token(Token::Type::Word, len)};
 }

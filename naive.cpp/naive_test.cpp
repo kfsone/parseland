@@ -30,6 +30,10 @@ public:
 
 	using Parser::skip_whitespace;
 	using Parser::skip_comment;
+
+	using Parser::parse_string;
+
+	using Parser::parse_word;
 };
 
 
@@ -234,4 +238,122 @@ TEST(ParserTest, SkipCommentUnterminatedBlock)
 	EXPECT_EQ("unterminated block comment", result.error());
 	EXPECT_EQ("/**XYZ/\n*\n/", result.token().source_);
 	EXPECT_EQ(0, parser.immediate());
+}
+
+TEST(ParserTest, ParseString)
+{
+	TestParser parser("\"hello world\"");
+	TResult result = parser.parse_string();
+	EXPECT_TRUE(result.is_token());
+	EXPECT_EQ(Token::Type::String, result.token().type_);
+	EXPECT_EQ("\"hello world\"", result.token().source_);
+	EXPECT_EQ('\0', parser.immediate());
+}
+
+TEST(ParserTest, ParseStringUnterminated)
+{
+	TestParser parser("\"hello");
+	TResult result = parser.parse_string();
+	EXPECT_TRUE(result.is_error());
+	EXPECT_TRUE(result.has_token());
+	EXPECT_EQ(Token::Type::String, result.token().type_);
+	EXPECT_EQ("unterminated string", result.error());
+	EXPECT_EQ("\"hello", result.token().source_);
+	EXPECT_EQ(0, parser.immediate());
+}
+
+TEST(ParserTest, ParseStringUnterminatedEOL)
+{
+	// Test that it detects a newline-before-quote.
+	TestParser parser("\"hello\n\"world\r\"");
+	TResult result = parser.parse_string();
+	EXPECT_TRUE(result.is_error());
+	EXPECT_TRUE(result.has_token());
+	EXPECT_EQ(Token::Type::String, result.token().type_);
+	EXPECT_EQ("unterminated string", result.error());
+	EXPECT_EQ("\"hello", result.token().source_);
+	EXPECT_EQ('\n', parser.immediate());
+
+	// Test with \r
+	parser.seek(1);
+	ASSERT_EQ('"', parser.immediate());
+
+	TResult result2 = parser.parse_string();
+	EXPECT_TRUE(result2.is_error());
+	EXPECT_TRUE(result2.has_token());
+	EXPECT_EQ(Token::Type::String, result2.token().type_);
+	EXPECT_EQ("unterminated string", result2.error());
+	EXPECT_EQ("\"world", result2.token().source_);
+	EXPECT_EQ('\r', parser.immediate());
+}
+
+
+TEST(ParserTest, ParseWord)
+{
+	TestParser parser("h _: 1 h1_");
+
+	// Try a single letter (h) word.
+	ASSERT_EQ('h', parser.immediate());
+	{
+		TResult result = parser.parse_word();
+		EXPECT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ("h", result.token().source_);
+		EXPECT_EQ(' ', parser.immediate());
+	}
+
+	// Now try a single underscore.
+	EXPECT_TRUE(parser.skip_whitespace());
+	ASSERT_EQ('_', parser.immediate());
+	{
+		TResult result = parser.parse_word();
+		EXPECT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ("_", result.token().source_);
+		EXPECT_EQ(':', parser.immediate());
+		parser.seek(1);
+	}
+
+	// Try a single digit - this should never happen, because
+	// they'll go to parse number, but it validates expected
+	// behavior if we did pass a number to this method.
+	EXPECT_TRUE(parser.skip_whitespace());
+	ASSERT_EQ('1', parser.immediate());
+	{
+		TResult result = parser.parse_word();
+		EXPECT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ("1", result.token().source_);
+		EXPECT_EQ(' ', parser.immediate());
+	}
+
+	// Now try a combo.
+	EXPECT_TRUE(parser.skip_whitespace());
+	ASSERT_EQ('h', parser.immediate());
+	{
+		TResult result = parser.parse_word();
+		EXPECT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ("h1_", result.token().source_);
+		EXPECT_EQ('\0', parser.immediate());
+	}
+}
+
+TEST(ParserTest, ParseWordTooLong)
+{
+#define CHARS_25 "012345678912345678901234_"
+#define CHARS_100 CHARS_25 CHARS_25 CHARS_25 CHARS_25
+
+	TestParser parser(CHARS_100 CHARS_100 CHARS_100 "[]");
+	EXPECT_EQ(strlen(CHARS_100) * 3 + strlen("[]"), parser.current().size());
+	TResult result = parser.parse_word();
+	EXPECT_TRUE(result.is_error());
+	EXPECT_TRUE(result.has_token());
+	EXPECT_EQ(Token::Type::Word, result.token().type_);
+	EXPECT_EQ("word too long (over 255 characters)", result.error());
+	EXPECT_EQ(CHARS_100 CHARS_100 CHARS_100, result.token().source_);
+	EXPECT_EQ("[]", parser.current());
+
+#undef CHARS_25
+#undef CHARS_100
 }
