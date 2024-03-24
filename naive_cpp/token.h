@@ -1,6 +1,8 @@
 #pragma once
 #ifndef INCLUDED_KFS_NAIVE_CPP_TOKEN_H
 #define INCLUDED_KFS_NAIVE_CPP_TOKEN_H
+// Copyright (C) Oliver 'kfsone' Smith, 2024 -- under MIT license terms.
+
 
 #include "common.h"
 
@@ -13,7 +15,7 @@ namespace kfs
 //!
 //! The source text is represented by a string_view, which is a non-owning reference
 //! to a c-string; callers are required to ensure that the source text outlives the
-//! tokens parsed from it.
+//! tokens scanned from it.
 //
 struct Token
 {
