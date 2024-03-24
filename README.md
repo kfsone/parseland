@@ -4,6 +4,11 @@ Kfsone's ParseLand -- Parsing Experiments
 This is a collection of evaluation-experiments trying out various different parsing tools/libs
 for a small DSL. Hopefully it might become a sort of Rosetta-Stone-meets-Recipebook.
 
+# License
+---------
+
+This code/project is licensed under MIT License terms -- see [LICENSE](LICENSE).
+
 
 # The Grammar
 -------------
