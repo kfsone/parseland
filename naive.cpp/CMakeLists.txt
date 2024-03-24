@@ -16,6 +16,12 @@ add_library (
 	tresult.h
 )
 
+if (MSVC)
+  target_compile_options (naive-cpp-parser PRIVATE /W3 /WX)
+else ()
+  target_compile_options (naive-cpp-parser PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif ()
+
 # Mm. Lets do some tests and benchmarks.
 
 Include (FetchContent)
@@ -26,6 +32,7 @@ FetchContent_Declare(
 )
 set (gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable (googletest)
+  
 
 enable_testing ()
 
