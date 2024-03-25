@@ -146,7 +146,7 @@ Scalar
 
 Compound <- Object / Array
 
-Object <- '{' ObjectMember (ObjectMember)* '}'
+Object <- '{' ObjectMember ObjectMember* '}'
 ObjectMember
 	<- FieldName '=' ↑ Value COMMA?
 

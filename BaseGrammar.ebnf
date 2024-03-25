@@ -120,32 +120,33 @@ value
   - An array can only contain objects,
   - All elements of an object must be fieldname=value pairs,
   - An empty array vs an empty object is an unimportant detail at parse,
+    so we'll assume it's an object until we have a coersion.
   
-   {}  <- compound (i.e we can't tell until we know the type of the lhs)
-   {{}} <- array of objects
+   {}  <- unit object
+   {{}} <- array of objects, one in length, with a unit object as that element
    {x=y} <- object
    {{{}}} <- invalid, cannot have an array of arrays
    {x=y {}}  <- invalid, mix of array/object components
 *)
 compound
-  = "{" "}"
-  | array                   (* { { ... } } *)
-  | user-defined-object     (* { x = y }   *)
-;
+  = object
+  | array
 
 
 (*
-  Array represents a braces-enclosed list of user-defined object values. An
-  empty list is considered a "compound", because without members we cannot
-  distinguish array-vs-object, so "compound" is the mutual equivalent.
+  Array represents a braces-enclosed list of user-defined object values.
+  To be distinct from the empty object, it must contain at least one
+  element.
 )
 array
-  = "{" user-defined-object+,? "}"  (* optional trailing commas *)
-;
-
+  = "{" array-element+,? "}"  (* optional trailing commas *)
+  ;
+array-element
+  = object
+  ;
 
 (*
-  UserDefinedObject represents a concrete instance of a type defined in the
+  Object represents a concrete instance of a type defined in the
   grammar, either in the current document, or elsewhere, denoted by a list
   of <field name> '=' <value>
 
@@ -153,23 +154,13 @@ array
 
       { name = "Oliver", callsign = "kfsone", friendly = true }
 
-  It is legal to describe a default object using "{" "}" but this would be
-  impossible to distinguish from an array, so instead we treat that as a
-  third entity type, "compound", and require at least 1 member for it to
-  be promoted to a udo.
+  The empty/default object - {} - is also a stand-in for the empty array.
 *)
-user-defined-object
-  = "{" member-value+,? "}"
+object
+  = "{" object-member*,? "}"
   ;
-
-
-(*
-  MemberValue represents the elements of a user-defined-object value
-  representation, that is: fieldname = value. Unlike the default value of
-  a type definition, the value here is not optional.
-*)
-member-value
-  = name:identifier "=" value
+object-member
+  = fieldname:identifier "=" value
   ;
 
 
