@@ -10,6 +10,14 @@ for a small DSL. Hopefully it might become a sort of Rosetta-Stone-meets-Recipeb
 This code/project is licensed under MIT License terms -- see [LICENSE](LICENSE).
 
 
+# Links
+-------
+
+[cpp-peglib](https://github.com/yhirose/cpp-peglib): C++17 header-only PEG library.
+[ParserTL](https://github.com/BenHanson/parsertl17): C++17 modular (combinator?) parser generator.
+
+
+
 # The Grammar
 -------------
 
@@ -63,4 +71,13 @@ Features:
 I'll be trying to implement the grammar in various different parsing tools and for different
 languages - C++ flex/bison with CMake, maybe a C++ peg grammar, versions in Rust, Golang and
 Python.
+
+
+# Credits/Thank you
+
+Thanks to [mingodad](https://github.com/mingodad) for fixing up my pseudo-EBNF and pointing me
+to the awesome [ParserTL Playground](https://mingodad.github.io/parsertl-playground/playground/)
+(select 'Parseland parser' from the drop down) and introducing me to [ParserTL](https://github.com/BenHanson/parsertl17): C++17 modular (combinator?) parser generator.
+
+
 

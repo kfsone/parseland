@@ -4,7 +4,6 @@
 
 
 (* Root: A document contains one or more 'definition'. *)
-
 root
   = definition*
 ;
@@ -66,9 +65,9 @@ parent
    - default value - optional
 
   e.g.
-  	int i
-  	string s = "Hello"
-  	Connection mConnections[] = { { host="skynet" online=true } }
+    int i
+    string s = "Hello"
+    Connection mConnections[] = { { host="skynet" online=true } }
 *)
 member-definition
   = typename:identifier fieldname:identifier
@@ -102,11 +101,12 @@ default-value = "=" value | (*empty*);
   represented as a compound (either an object or an array-of-object).
 *)
 value
-	= boolean
-	| float
-	| integer
-	| string-literal
-	| compound
+    = boolean
+    | float
+    | integer
+    | string-literal
+    | compound
+    | qualified-ident
 ;
 
 
@@ -129,8 +129,8 @@ value
 *)
 compound
   = "{" "}"
-  | array					(* { { ... } } *)
-  | user-defined-object		(* { x = y }   *)
+  | array                   (* { { ... } } *)
+  | user-defined-object     (* { x = y }   *)
 ;
 
 
@@ -140,7 +140,7 @@ compound
   distinguish array-vs-object, so "compound" is the mutual equivalent.
 )
 array
-  = "{" user-defined-object+,? "}"	(* optional trailing commas *)
+  = "{" user-defined-object+,? "}"  (* optional trailing commas *)
 ;
 
 
@@ -197,7 +197,7 @@ boolean       = "true" | "false";
       +5.1
       -00001.100000
 *)
-float		  = [+-]? ([0-9]+\.[0-9]*|\.[0-9]+);
+float         = [+-]? ([0-9]+\.[0-9]*|\.[0-9]+);
 
 
 (* Integer represents whole numbers, with optional sign. *)
@@ -210,26 +210,32 @@ integer       = [+-]? [0-9]+;
   (\\), but otherwise we pay no attention to much inside the string.
 *)
 string-literal
-	=
-		'"'
-		( 
-			(* any character that is not newline, quote, or backslash *)
-			[^\n"\\]
-	
-			(* or a backslash followed by letters, digits, underscore etc,
-		 	you can't escape non-printable characters like newline *)
-		|	'\\' ('"' | '\\' | [A-Za-z0-9_]*)
-	
-		(* any number of repetitions.. *)
-		)*  
+    =
+        '"'
+        ( 
+            (* any character that is not newline, quote, or backslash *)
+            [^\n"\\]
+    
+            (* or a backslash followed by letters, digits, underscore etc,
+            you can't escape non-printable characters like newline *)
+        |   '\\' ('"' | '\\' | [A-Za-z0-9_]*)
+    
+        (* any number of repetitions.. *)
+        )*  
 
-		(* must be followed by a close quote or else we raise an error *)
-		(
-			'"'		(* close quote *)
-		|	error "@3: unterminated string literal started at @1"
-		)
+        (* must be followed by a close quote or else we raise an error *)
+        (
+            '"'     (* close quote *)
+        |   error "@3: unterminated string literal started at @1"
+        )
 ;
-		
+
+
+(* Qualified identifier: To use an enum you must provide the qualified form of the name. *)
+qualified-ident
+  = typename:identifer '::' membername:identifier
+;
+
 
 (*
   WHITESPACE defines terminals that will be discarded during the parse,
@@ -244,19 +250,19 @@ LINE_COMMENT  = "//" [^\n]*;
 
 (* Nestable, C-style block comments. *)
 BLOCK_COMMENT
-	=	"/*"
-		(
-			(* nested block comment *)
-			BLOCK_COMMENT
+    =   "/*"
+        (
+            (* nested block comment *)
+            BLOCK_COMMENT
 
-			(* any non '/' or '*' charaters are fine *)
-		|	[^*/]
-		|	('/' (?!'*'))		(* slash so long as not followed by star, that would be '/*' *)
-		|	('*' (?!'/'))		(* star so long as the next isn't '/', that would be '*/' *)
-		)* 						(* repeat any number of these *)
-		(
-			"*/"
-		| error "@1: unterminated block comment at end of file, started here @1"
-		)
+            (* any non '/' or '*' charaters are fine *)
+        |   [^*/]
+        |   ('/' (?!'*'))       (* slash so long as not followed by star, that would be '/*' *)
+        |   ('*' (?!'/'))       (* star so long as the next isn't '/', that would be '*/' *)
+        )*                      (* repeat any number of these *)
+        (
+            "*/"
+        | error "@1: unterminated block comment at end of file, started here @1"
+        )
 ;
 
