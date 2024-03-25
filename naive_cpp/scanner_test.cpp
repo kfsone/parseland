@@ -12,8 +12,10 @@ struct TestScanner : public Scanner
 {
 	using Scanner::Scanner;
 
-	const string_view& source() const noexcept { return source_; }
-	const string_view& current() const noexcept { return current_; }
+	[[nodiscard]] const string_view& source() const noexcept { return source_; }
+	[[nodiscard]] const string_view& current() const noexcept { return current_; }
+	[[nodiscard]] size_t comments() const noexcept { return comments_; }
+	[[nodiscard]] size_t comments_len() const noexcept { return comments_len_; }
 
 	void seek(size_t i)
 	{
@@ -44,11 +46,14 @@ TEST(ScannerTest, Construction)
 
 	ASSERT_EQ("hello world", scanner.source());
 	ASSERT_EQ("hello world", scanner.current());
+	ASSERT_EQ(0, scanner.comments());
+	ASSERT_EQ(0, scanner.comments_len());
 
 	// Make sure our 'seek' helper works, too.
 	scanner.seek(5);
 	EXPECT_EQ(" world", scanner.current());
 	ASSERT_EQ("hello world", scanner.source());
+
 }
 
 
@@ -133,13 +138,17 @@ TEST(ScannerTest, SkipWhitespace)
 	// Test it can actually skip whitespace.
 	EXPECT_EQ(true, scanner.skip_whitespace());
 	EXPECT_EQ('X', scanner.front());
+	EXPECT_EQ(0, scanner.comments());
+
 	EXPECT_EQ(false, scanner.skip_whitespace());
 	EXPECT_EQ('X', scanner.front());
-	
+	EXPECT_EQ(0, scanner.comments());
+
 	// test the empty string
 	scanner.seek(1);
 	EXPECT_EQ(false, scanner.skip_whitespace());
 	EXPECT_EQ(0, scanner.front());
+	EXPECT_EQ(0, scanner.comments());
 }
 
 
@@ -147,7 +156,17 @@ TEST(ScannerTest, SkipCommentNoCommentEmpty)
 {
 	TestScanner scanner("");
 	EXPECT_EQ(None, scanner.skip_comment());
+	EXPECT_EQ(0, scanner.comments());
 }
+
+
+TEST(ScannerTest, SkipCommentOneSlash)
+{
+	TestScanner scanner("/");
+	EXPECT_EQ(None, scanner.skip_comment());
+	EXPECT_EQ(0, scanner.comments());
+}
+
 
 TEST(ScannerTest, SkipCommentNoCommentPopulated)
 {
@@ -165,15 +184,33 @@ TEST(ScannerTest, SkipCommentNoCommentPopulated)
 	EXPECT_EQ('Z', scanner.front());  // confirm it didn't advance.
 }
 
+
+TEST(ScannerTEst, SkipCommentLineCommentEOI)
+{
+	// Line comment with end of input immediately after the token.
+	TestScanner scanner("//");
+	EXPECT_EQ(Token::Type::LineComment, scanner.skip_comment().token().type_);
+	EXPECT_EQ("", scanner.current());
+}
+
+
+TEST(ScannerTEst, SkipCommentLineCommentNoNewline)
+{
+	TestScanner scanner("//aaa");
+	EXPECT_EQ(Token::Type::LineComment, scanner.skip_comment().token().type_);
+	EXPECT_EQ("", scanner.current());
+}
+
+
 TEST(ScannerTest, SkipCommentLineComment)
 {
 	// Take a line comment and throw some extra comment-like stuff to ensure we don't
 	// have any kind of conflict.
-	TestScanner scanner("// // /*\nx");
-	TResult result = scanner.skip_comment();
+	TestScanner scanner("/////*\nx");
+	const TResult result = scanner.skip_comment();
 	EXPECT_TRUE(result.is_token());
 	EXPECT_EQ(Token::Type::LineComment, result.token().type_);
-	EXPECT_EQ("// // /*", result.token().source_);
+	EXPECT_EQ("/////*", result.token().source_);
 	EXPECT_EQ('\n', scanner.front());
 	EXPECT_EQ(None, scanner.skip_comment());
 }
@@ -185,7 +222,7 @@ TEST(ScannerTest, SkipCommentBlockComment)
 	// A couple of IDEs dislike me writing the string directly here
 	TestScanner scanner("/**/X/**-**/Y");
 	{
-		TResult result = scanner.skip_comment();
+		const TResult result = scanner.skip_comment();
 
 		EXPECT_TRUE(result.is_token());
 		EXPECT_EQ(Token::Type::CloseComment, result.token().type_);
@@ -196,7 +233,7 @@ TEST(ScannerTest, SkipCommentBlockComment)
 	scanner.seek(1);
 
 	{
-		TResult result = scanner.skip_comment();
+		const TResult result = scanner.skip_comment();
 		EXPECT_TRUE(result.is_token());
 		EXPECT_EQ(Token::Type::CloseComment, result.token().type_);
 		EXPECT_EQ("/**-**/", result.token().source_);
@@ -209,7 +246,7 @@ TEST(ScannerTest, SkipCommentBlockComment)
 TEST(ScannerTest, SkipCommentUnterminatedBlock)
 {
 	TestScanner scanner("/**XYZ/\n*\n/");
-	TResult result = scanner.skip_comment();
+	const TResult result = scanner.skip_comment();
 	EXPECT_TRUE(result.is_error());
 	EXPECT_TRUE(result.has_token());
 	EXPECT_EQ(Token::Type::OpenComment, result.token().type_);
@@ -222,7 +259,7 @@ TEST(ScannerTest, SkipCommentUnterminatedBlock)
 TEST(ScannerTest, ScanString)
 {
 	TestScanner scanner("\"hello world\"");
-	TResult result = scanner.scan_string();
+	const TResult result = scanner.scan_string();
 	EXPECT_TRUE(result.is_token());
 	EXPECT_EQ(Token::Type::String, result.token().type_);
 	EXPECT_EQ("\"hello world\"", result.token().source_);
@@ -233,7 +270,7 @@ TEST(ScannerTest, ScanString)
 TEST(ScannerTest, ScanStringUnterminated)
 {
 	TestScanner scanner("\"hello");
-	TResult result = scanner.scan_string();
+	const TResult result = scanner.scan_string();
 	EXPECT_TRUE(result.is_error());
 	EXPECT_TRUE(result.has_token());
 	EXPECT_EQ(Token::Type::String, result.token().type_);
@@ -247,7 +284,7 @@ TEST(ScannerTest, ScanStringUnterminatedEOL)
 {
 	// Test that it detects a newline-before-quote.
 	TestScanner scanner("\"hello\n\"world\r\"");
-	TResult result = scanner.scan_string();
+	const TResult result = scanner.scan_string();
 	EXPECT_TRUE(result.is_error());
 	EXPECT_TRUE(result.has_token());
 	EXPECT_EQ(Token::Type::String, result.token().type_);
@@ -259,7 +296,7 @@ TEST(ScannerTest, ScanStringUnterminatedEOL)
 	scanner.seek(1);
 	ASSERT_EQ('"', scanner.front());
 
-	TResult result2 = scanner.scan_string();
+	const TResult result2 = scanner.scan_string();
 	EXPECT_TRUE(result2.is_error());
 	EXPECT_TRUE(result2.has_token());
 	EXPECT_EQ(Token::Type::String, result2.token().type_);
@@ -294,7 +331,7 @@ TEST(ScannerTest, ScanNumber)
 		SCOPED_TRACE(c.input);
 
 		TestScanner scanner(c.input);
-		TResult result = scanner.scan_number();
+		const TResult result = scanner.scan_number();
 		ASSERT_TRUE(result.is_token());
 		EXPECT_EQ(c.type, result.token().type_);
 		EXPECT_EQ(c.capture, result.token().source_);
@@ -329,7 +366,7 @@ TEST(ScannerTest, ScanSignedNumberNominal)
 		SCOPED_TRACE(c.input);
 
 		TestScanner scanner(c.input);
-		TResult result = scanner.scan_signed_number();
+		const TResult result = scanner.scan_signed_number();
 		ASSERT_TRUE(result.is_token());
 		EXPECT_EQ(c.type, result.token().type_);
 		EXPECT_EQ(c.capture, result.token().source_);
@@ -348,7 +385,7 @@ TEST(ScannerTest, ScanSignedNumberFail)
 		SCOPED_TRACE(c);
 
 		TestScanner scanner(c);
-		TResult result = scanner.scan_signed_number();
+		const TResult result = scanner.scan_signed_number();
 		ASSERT_TRUE(result.is_error());
 		ASSERT_TRUE(result.has_token());
 		EXPECT_EQ(Token::Type::Invalid, result.token().type_);
@@ -377,7 +414,7 @@ TEST(ScannerTest, ScanWord)
 		SCOPED_TRACE(c.input);
 
 		TestScanner scanner(c.input);
-		TResult result = scanner.scan_word();
+		const TResult result = scanner.scan_word();
 		ASSERT_TRUE(result.is_token());
 		EXPECT_EQ(Token::Type::Word, result.token().type_);
 		EXPECT_EQ(c.capture, result.token().source_);
@@ -385,3 +422,228 @@ TEST(ScannerTest, ScanWord)
 	}
 }
 
+
+// And now ... the grand finale ... lets test "next".
+
+TEST(ScannerTest, NextEmpty)
+{
+	// Calling the scanner on an empty string should indicate EOI via None,
+	// and this is not about testing EOI as much as testing that we are
+	// graceful in handling an empty input.
+	const TResult result = TestScanner("").next();
+	ASSERT_EQ(None, result);
+}
+
+TEST(ScannerTest, NextWhitespace)
+{
+	struct PassCase {
+		string_view name;
+		string_view input;
+	} cases[] = {
+		PassCase{"space", " "}, PassCase{"tab", "\t"}, PassCase{"cr", "\r"}, PassCase{"lf", "\n"},
+		PassCase{"crlf", "\r\n"}, PassCase{"lfcr", "\n\r"},
+		PassCase{"space-mix", "      \t  \r  \n"},
+		PassCase{"tab-mix",   "\t  \t\t\t\r\t\n"},
+		PassCase{"cr-mix",    "\r  \r\t\r\r\r\n"},
+		PassCase{"lf-mix",    "\n  \n\t\n\r\n\n"},
+	};
+	for (const auto& c: cases)
+	{
+		SCOPED_TRACE(c.name);
+
+		TestScanner scanner(c.input);
+		EXPECT_EQ(None, scanner.next());
+		ASSERT_EQ(0, scanner.front());
+	}
+}
+
+TEST(ScannerTest, NextComments)
+{
+	struct PassCase {
+		string_view name;
+		string_view input;
+		size_t      comments;
+		size_t      comments_len;
+	} cases[] = {
+		PassCase{"empty line comment", "//", 1, 2},
+		PassCase{"multiple line comments", "//\n//\n//*/\n", 3, 8},
+		PassCase{"eoi empty block comment", "/**/", 1, 4},
+		PassCase{"eoi // block comment", "/*//*/", 1, 6},  // this is only valid in this naive version that doesn't do nesting.
+		PassCase{"block-hello plus line world", "/* hello */// world\n\n", 2, 19},
+		PassCase{"multi comment", "///**/\n/**///\n/*\n\r\n\t\n*/", 4, 21},
+	};
+	for (const auto& c: cases)
+	{
+		SCOPED_TRACE(c.name);
+
+		TestScanner scanner(c.input);
+		EXPECT_EQ(None, scanner.next());
+		EXPECT_EQ(c.comments, scanner.comments());
+		EXPECT_EQ(c.comments_len, scanner.comments_len());
+	}
+}
+
+TEST(ScannerTest, NextUnexpectedSingleChar)
+{
+	TestScanner scanner("~");
+	TResult result = scanner.next();
+	EXPECT_TRUE(result.is_error());
+	EXPECT_TRUE(result.has_token());
+	EXPECT_EQ(Token::Type::Invalid, result.token().type_);
+	EXPECT_EQ("~", result.token().source_);  // confirm it didn't advance.
+	EXPECT_EQ("unexpected character", result.error());
+	EXPECT_EQ(0, scanner.front());
+}
+
+TEST(ScannerTest, NextUnexpectedCharPair)
+{
+	TestScanner scanner("@!");
+	const TResult result = scanner.next();
+	EXPECT_TRUE(result.is_error());
+	EXPECT_TRUE(result.has_token());
+	EXPECT_EQ(Token::Type::Invalid, result.token().type_);
+	EXPECT_EQ("@", result.token().source_);  // confirm it didn't advance.
+	EXPECT_EQ("unexpected character", result.error());
+	EXPECT_EQ('!', scanner.front());
+}
+
+TEST(ScannerTest, NextSkipViaUnexpected)
+{
+	// Test that whitespace/comment skipping works and takes us to a non-whitespace/comment char.
+	TestScanner scanner(" \t\r\n// \n/* :K~\"*/`");
+	const TResult result = scanner.next();
+	EXPECT_TRUE(result.is_error());
+	EXPECT_TRUE(result.has_token());
+	EXPECT_EQ(Token::Type::Invalid, result.token().type_);
+	EXPECT_EQ("`", result.token().source_);
+	EXPECT_EQ(2, scanner.comments());
+}
+
+TEST(ScannerTest, Next)
+{
+	struct PassCase {
+		string_view name;
+		string_view input;
+		Token::Type type;
+		string_view capture;
+		string_view remainder;
+		size_t      comments;
+	} cases[] = {
+		// strings
+		PassCase{"empty string->eoi", "\"\"", Token::Type::String, "\"\"", "", 0},
+		PassCase{"noise->empty string->noise", " \t/**/\"\"//", Token::Type::String, "\"\"", "//", 1},
+		PassCase{"hello string->eoi", "\"hello world\"", Token::Type::String, "\"hello world\"", "", 0},
+		PassCase{"noise->hello string->symbol", "\r\n\"hello world\"=", Token::Type::String, "\"hello world\"", "=", 0},
+
+		// Symbols
+		PassCase{"{", "{", Token::Type::LBrace, "{", "", 0},
+		PassCase{"}", "}", Token::Type::RBrace, "}", "", 0},
+		PassCase{"[,", "[,", Token::Type::LBracket, "[", ",", 0},	// comma just to be different
+		PassCase{"]", "]", Token::Type::RBracket, "]", "", 0},
+		PassCase{"::", "::", Token::Type::Scope, "::", "", 0},
+		PassCase{":::", ":::", Token::Type::Scope, "::", ":", 0},
+		PassCase{":", ":", Token::Type::Colon, ":", "", 0},
+		PassCase{"=", "=", Token::Type::Equals, "=", "", 0},
+		PassCase{",", ",", Token::Type::Comma, ",", "", 0},
+		PassCase{"+1,", "+1", Token::Type::Integer, "+1", "", 0},
+		PassCase{"-0", "-0", Token::Type::Integer, "-0", "", 0},
+		PassCase{"0a", "0a", Token::Type::Integer, "0", "a", 0},
+		PassCase{"1.2", "1.2", Token::Type::Float, "1.2", "", 0},
+	};
+
+	for (const auto& c: cases)
+	{
+		SCOPED_TRACE(c.name);
+		TestScanner scanner(c.input);
+		const TResult result = scanner.next();
+		ASSERT_TRUE(result.is_token());
+		EXPECT_EQ(c.type, result.token().type_);
+		EXPECT_EQ(c.capture, result.token().source_);
+		EXPECT_EQ(c.remainder, scanner.current());
+		EXPECT_EQ(c.comments, scanner.comments());
+	}
+}
+
+void testWords(char prefix, std::string suffix)
+{
+	suffix.insert(suffix.begin(), prefix);
+	{
+		SCOPED_TRACE(suffix + "->eoi");
+		TestScanner scanner(suffix);
+		const TResult result = scanner.next();
+		ASSERT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ(suffix, result.token().source_);
+		EXPECT_EQ("", scanner.current());
+	}
+
+	{
+		SCOPED_TRACE(suffix + "->!");
+		const string source = suffix + "//";
+		TestScanner scanner(source);
+		const TResult result = scanner.next();
+		ASSERT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ(suffix, result.token().source_);
+		EXPECT_EQ("//", scanner.current());
+	}
+}
+
+TEST(ScannerTest, NextWords)
+{
+	for (const std::string suffix: { "", "_", "aZ", "a1_23" })
+	{
+		for (char c = 'a'; c <= 'z'; ++c)
+		{
+			testWords(c, suffix);
+			testWords(static_cast<char>(std::toupper(c)), suffix);
+		}
+
+		testWords('_', suffix);
+	}
+}
+
+
+TEST(ScannerTest, NextFailures)
+{
+	// A few cases we expect to get errors from.
+	ASSERT_TRUE(TestScanner(" /*").next().is_error());
+	ASSERT_TRUE(TestScanner(" \"").next().is_error());
+	ASSERT_TRUE(TestScanner("+").next().is_error());
+	ASSERT_TRUE(TestScanner("-").next().is_error());
+
+	// List of characters that are acceptable, so we can test
+	// all the others.
+	static const char* allowed =
+		" \t\r\n"
+		"0123456789"
+		"abcdefghijklmnopqrstuvwxyz"
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"_"
+		"{}[]:=,"
+		"/\""
+	;
+	char source[3] = {0, 0, 0};
+	for (int c = 1; c < 255; c++)
+	{
+		source[0] = static_cast<char>(c & 0xff);
+		if (strchr(allowed, source[0]) != nullptr)
+			continue;
+
+		auto label = std::to_string(c);
+		if (isprint(c))
+		{
+			char desc[10];
+			snprintf(desc, 10, " (%c)", source[0]);
+			label += desc;
+		}
+		SCOPED_TRACE(label);
+
+		TestScanner scanner(source);
+		const TResult result = scanner.next();
+		EXPECT_TRUE(result.is_error());
+		EXPECT_TRUE(result.has_token());
+		EXPECT_EQ("unexpected character", result.error());
+		EXPECT_EQ(source, result.token().source_);
+	}
+}

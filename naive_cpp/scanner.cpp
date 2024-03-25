@@ -45,13 +45,14 @@ TResult Scanner::next()
 		{
 			if (result.is_error())
 				return result;
+			// Track comment stats.
+			comments_ += 1;
+			comments_len_ += result.token().source_.length();
 			continue;
 		}
 
-	
 		// We're fairly confidence it should be a regular token now.
-		const char first = front();
-		switch (first)
+		switch (const char first = front(); first)
 		{
 		case '"':
 			return scan_string();
@@ -77,12 +78,15 @@ TResult Scanner::next()
 		case ',':
 			return TResult{make_token(Token::Type::Comma, 1)};
 
-
 		case '+':
 		case '-':
 			return scan_signed_number();
 
 		case '.':
+			if (peek(1) >= '0' && peek(1) <= '9')
+				return scan_number();
+			break;
+
 		case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
 			return scan_number();
 
@@ -96,8 +100,10 @@ TResult Scanner::next()
 			return scan_word();
 
 		default:
-			return unexpected_result();
+			break;
 		}
+
+		return unexpected_result();
 	}
 
 	// We reached end of input.
@@ -230,7 +236,7 @@ TResult Scanner::scan_word()
 	size_t len = 1;
 	for (; len < current_.size(); len++)
 	{
-		char c = peek(len);
+		const char c = peek(len);
 		if ((c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_')
 			break;
 	}

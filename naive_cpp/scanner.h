@@ -3,7 +3,6 @@
 #define INCLUDED_KFS_NAIVE_CPP_SCANNER_H
 // Copyright (C) Oliver 'kfsone' Smith, 2024 -- under MIT license terms.
 
-#include "common.h"
 #include "token.h"
 #include "tresult.h"
 
@@ -15,11 +14,18 @@ namespace kfs
 struct Scanner
 {
 public:
-	Scanner(string_view source)
+	// Caller is responsible for ensuring that the source string outlives the
+	// scanner itself.
+	explicit Scanner(std::string&& source) = delete;
+
+	explicit Scanner(const string_view source)
 		: source_(source)
 		, current_(source)
 	{
 	}
+	explicit Scanner(const std::string& source) : Scanner(string_view(source)) {}
+	template<size_t N> explicit Scanner(const char (&source)[N]) : Scanner(string_view(source, N)) {}
+	explicit Scanner(const char* source) : Scanner(string_view(source)) {}
 
 	//! next will attempt to fetch and return the next token. If end-of-input is reached,
 	//! it will return None; if a valid token is found, it will return the token; if an
@@ -28,8 +34,10 @@ public:
 	TResult next();
 
 protected:
-	string_view		source_;				// Original unmodified source view.
-	string_view		current_;				// Reduced source view as we scan.
+	string_view		source_		  { };		// Original unmodified source view.
+	string_view		current_	  { };		// Reduced source view as we scan.
+	size_t			comments_     {0};		// Count of comments skipped.
+	size_t			comments_len_ {0};		// Total quantity of comment text skipped.
 
 protected:
 	/* ---------- Internal Methods, I hate pimpls ---------- */
@@ -40,11 +48,13 @@ protected:
 	TResult unexpected_result() noexcept;
 
 	// front will return the first character of the current view, or '\0' at eoi.
+	[[nodiscard]]
 	char front() const noexcept { return peek(0); }
 
 	// peek will return the Nth character of the current view, or '\0' if at/beyond oei.
 	// note: the 0th character is 'front'.
-	char peek(size_t offset) const noexcept { return offset < current_.size() ? current_[offset] : '\0'; }
+	[[nodiscard]]
+	char peek(const size_t offset) const noexcept { return offset < current_.size() ? current_[offset] : '\0'; }
 
 	// skip_whitespace will advance past any whitespace characters or return false.
 	bool skip_whitespace();
