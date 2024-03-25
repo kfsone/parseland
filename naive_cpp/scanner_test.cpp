@@ -24,14 +24,15 @@ public:
 	using Scanner::make_token;
 	using Scanner::unexpected_result;
 
-	using Scanner::peek;
 	using Scanner::front;
+	using Scanner::peek;
 
 	using Scanner::skip_whitespace;
 	using Scanner::skip_comment;
 
 	using Scanner::scan_string;
-
+	using Scanner::scan_number;
+	using Scanner::scan_signed_number;
 	using Scanner::scan_word;
 };
 
@@ -268,53 +269,119 @@ TEST(ScannerTest, ScanStringUnterminatedEOL)
 }
 
 
-TEST(ScannerTest, ScanWord)
+TEST(ScannerTest, ScanNumber)
 {
-	TestScanner scanner("h _: 1 h1_");
-
-	// Try a single letter (h) word.
-	ASSERT_EQ('h', scanner.front());
+	// Scan number takes it as read that the byte at the front of current is numeric,
+	// then scans until it reaches a non-numeric character.
+	// If that character is '.', and it hasn't seen a dot yet, it will continue.
+	// Otherwise it ends on the first non-digit or reaching EOI.
+	struct PassCase {
+		std::string_view input;
+		std::string_view capture;
+		std::string_view remainder;
+		Token::Type      type;
+	} cases[] = {
+		PassCase { "0",   	"0",	"",  Token::Type::Integer },
+		PassCase { "0a",    "0",    "a",   Token::Type::Integer },
+		PassCase { "1.",  	"1.",	"",  Token::Type::Float },
+		PassCase { "123a",	"123",	"a",   Token::Type::Integer },
+		PassCase { "12.a",	"12.",	"a",   Token::Type::Float },
+		PassCase { "1..", 	"1.",	".",   Token::Type::Float },
+		PassCase { "1.2.",  "1.2",  ".",   Token::Type::Float },
+	};
+	for (const PassCase& c: cases)
 	{
-		TResult result = scanner.scan_word();
-		EXPECT_TRUE(result.is_token());
-		EXPECT_EQ(Token::Type::Word, result.token().type_);
-		EXPECT_EQ("h", result.token().source_);
-		EXPECT_EQ(' ', scanner.front());
-	}
+		SCOPED_TRACE(c.input);
 
-	// Now try a single underscore.
-	EXPECT_TRUE(scanner.skip_whitespace());
-	ASSERT_EQ('_', scanner.front());
-	{
-		TResult result = scanner.scan_word();
-		EXPECT_TRUE(result.is_token());
-		EXPECT_EQ(Token::Type::Word, result.token().type_);
-		EXPECT_EQ("_", result.token().source_);
-		EXPECT_EQ(':', scanner.front());
-		scanner.seek(1);
-	}
-
-	// Try a single digit - this should never happen, because
-	// they'll go to scan_number, but it validates expected
-	// behavior if we did pass a number to this method.
-	EXPECT_TRUE(scanner.skip_whitespace());
-	ASSERT_EQ('1', scanner.front());
-	{
-		TResult result = scanner.scan_word();
-		EXPECT_TRUE(result.is_token());
-		EXPECT_EQ(Token::Type::Word, result.token().type_);
-		EXPECT_EQ("1", result.token().source_);
-		EXPECT_EQ(' ', scanner.front());
-	}
-
-	// Now try a combo.
-	EXPECT_TRUE(scanner.skip_whitespace());
-	ASSERT_EQ('h', scanner.front());
-	{
-		TResult result = scanner.scan_word();
-		EXPECT_TRUE(result.is_token());
-		EXPECT_EQ(Token::Type::Word, result.token().type_);
-		EXPECT_EQ("h1_", result.token().source_);
-		EXPECT_EQ('\0', scanner.front());
+		TestScanner scanner(c.input);
+		TResult result = scanner.scan_number();
+		ASSERT_TRUE(result.is_token());
+		EXPECT_EQ(c.type, result.token().type_);
+		EXPECT_EQ(c.capture, result.token().source_);
+		EXPECT_EQ(c.remainder, scanner.current());
 	}
 }
+
+
+TEST(ScannerTest, ScanSignedNumberNominal)
+{
+	// Several basic sanity tests
+	struct PassCase {
+		std::string_view input;
+		std::string_view capture;
+		std::string_view remainder;
+		Token::Type      type;
+	} cases[] = {
+		// First check if for size > 1 and 0 <= peek <= 9,
+		// with heavy lifting done inside san_number.
+		PassCase { "+0",			"+0",				"",		Token::Type::Integer },
+		PassCase { "-01",          	"-01",				"",		Token::Type::Integer },
+
+		// Next check is for size > 2 and peek == '.', with
+		// the consumption of the '.' being handled here.
+		PassCase { "+.0", 			"+.0",				"",		Token::Type::Float },
+		PassCase { "-.12a",			"-.12",             "a",	Token::Type::Float },
+		PassCase { "+.0123.",       "+.0123",			".",	Token::Type::Float },
+		PassCase { "+.999+",        "+.999",            "+",	Token::Type::Float },
+	};
+	for (const auto& c : cases)
+	{
+		SCOPED_TRACE(c.input);
+
+		TestScanner scanner(c.input);
+		TResult result = scanner.scan_signed_number();
+		ASSERT_TRUE(result.is_token());
+		EXPECT_EQ(c.type, result.token().type_);
+		EXPECT_EQ(c.capture, result.token().source_);
+		EXPECT_EQ(c.remainder, scanner.current());
+	}
+}
+
+TEST(ScannerTest, ScanSignedNumberFail)
+{
+	std::string_view cases[] = {
+		"+", "++", "+a", "+-", "+.", "+.a", "+.+", "+.-",
+		"-", "--", "-a", "-+", "-.", "-.a", "-.-", "-.+",
+	};
+	for (const auto& c : cases)
+	{
+		SCOPED_TRACE(c);
+
+		TestScanner scanner(c);
+		TResult result = scanner.scan_signed_number();
+		ASSERT_TRUE(result.is_error());
+		ASSERT_TRUE(result.has_token());
+		EXPECT_EQ(Token::Type::Invalid, result.token().type_);
+		EXPECT_EQ("unexpected character", result.error());
+		EXPECT_EQ(c.substr(0, 1), result.token().source_);
+	}
+}
+
+
+TEST(ScannerTest, ScanWord)
+{
+	struct PassCase {
+		std::string_view input;
+		std::string_view capture;
+		std::string_view remainder;
+	} cases[] = {
+		PassCase { "h", "h", "" },
+		PassCase { "hello", "hello", "" },
+		PassCase { "hello world", "hello", " world" },
+		PassCase { "h1x_123.a", "h1x_123", ".a" },
+		PassCase { "a\"", "a", "\"" },
+		PassCase { "123", "123", "" },
+	};
+	for (const auto& c: cases)
+	{
+		SCOPED_TRACE(c.input);
+
+		TestScanner scanner(c.input);
+		TResult result = scanner.scan_word();
+		ASSERT_TRUE(result.is_token());
+		EXPECT_EQ(Token::Type::Word, result.token().type_);
+		EXPECT_EQ(c.capture, result.token().source_);
+		EXPECT_EQ(c.remainder, scanner.current());
+	}
+}
+

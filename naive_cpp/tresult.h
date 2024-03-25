@@ -30,8 +30,8 @@ using std::string;
 struct TResult
 {
 private:
-	const std::optional<Token>  token_ {};
-	const std::optional<string> error_ {};
+	std::optional<Token>  token_ {};
+	std::optional<string> error_ {};
 
 public:
 	constexpr TResult() = default;

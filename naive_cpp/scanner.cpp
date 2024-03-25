@@ -84,7 +84,7 @@ TResult Scanner::next()
 
 		case '.':
 		case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-			return scan_number(0);
+			return scan_number();
 
 		case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j':
 		case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't':
@@ -175,6 +175,29 @@ TResult Scanner::scan_string()
 }
 
 
+// Handles a digit sequence that will either be an integer or float if we encounter
+// a decimal point.
+TResult Scanner::scan_number()
+{
+	// We take it as read that the caller checked the first character to be numeric,
+	// so we start from character 1.
+	bool is_float = false;
+	size_t len = 1;
+	for ( ; len < current_.size(); ++len)
+	{
+		if (const char c = peek(len); c >= '0' && c <= '9')
+			continue;
+		// if we see a '.', set is_float to true, and then if it wasn't already set,
+		// allow another series of integers to follow.
+		else if (c == '.' && std::exchange(is_float, true) == false)
+			continue;
+		// anything else is a stop.
+		break;
+	}
+	return TResult{make_token(!is_float ? Token::Type::Integer : Token::Type::Float, len)};
+}
+
+
 // On encountering a +/- sign, optimistically assume it's going to be a number,
 // so the next character will either be a digit which we hand off to scan_number
 // and allow that to deal with finding out it's a float, or we find a '.' and if
@@ -183,12 +206,12 @@ TResult Scanner::scan_string()
 TResult Scanner::scan_signed_number()
 {
 	if (current_.size() > 1 && peek(1) >= '0' && peek(1) <= '9')
-		return scan_number(1);
+		return scan_number();
 
-	if (current_.size() > 2 && peek(1) == '.')
+	if (peek(1) == '.')
 	{
 		size_t len = 2;
-		for (;len < current_.size(); len++)
+		for ( ; len < current_.size(); len++)
 		{
 			if (char c = peek(len); c < '0' || c > '9')
 				break;
@@ -198,33 +221,6 @@ TResult Scanner::scan_signed_number()
 	}
 
 	return unexpected_result();
-}
-
-
-// Handles a digit sequence that will either be an integer or float if we encounter
-// a decimal point.
-TResult Scanner::scan_number(size_t offset)
-{
-	bool is_float = false;
-	while (offset < current_.size())
-	{
-		char c = peek(offset);
-		if (c >= '0' && c <= '9')
-		{
-			++offset;
-			continue;
-		}
-		if (c == '.')
-		{
-			// set is_float to true, and then if it wasn't already set,
-			// allow another series of integers to follow.
-			// stop - that means we already saw a '.'.
-			if (std::exchange(is_float, true) == false)
-				continue;
-		}
-		break;
-	}
-	return TResult{make_token(!is_float ? Token::Type::Integer : Token::Type::Float, offset)};
 }
 
 

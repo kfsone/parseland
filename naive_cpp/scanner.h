@@ -56,12 +56,11 @@ protected:
 	// If the string is unterminated by EOI/EOL, an error is returned.
 	TResult scan_string();
 
+	// Optimistic attempt to scan a number from either a digit or a decimal point.
+	TResult scan_number();
+
 	// Optimistic attempt to scan a signed integer/float from a leading sign (+/-).
 	TResult scan_signed_number();
-
-	// Optimistic attempt to scan a number from either a digit or a decimal point. Takes
-	// an offset to allow it to be used from scan_signed_number.
-	TResult scan_number(size_t offset);
 
 	// Scan a word token from the current view at the initial character. Note that
 	// this will happily accept a digit as the first character, it's assumed that the
