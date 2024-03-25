@@ -1,3 +1,4 @@
+.jj
 .vs
 .vscode
 .idea
@@ -5,6 +6,7 @@
 out/
 build/
 build-*/
+cmake-build-*/
 ninja/
 ninja-*/
 CMakeFiles/
