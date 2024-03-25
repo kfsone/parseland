@@ -189,5 +189,4 @@ bool_value
 	|	KW_FALSE { $$ = ParsedText("false"); /* populate yylval in scanner */ }
 	;
 
-float_value
-	:	KW_
+/// UNDER CONSTRUCTION VVVV

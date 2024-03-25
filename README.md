@@ -3,6 +3,8 @@ Kfsone's ParseLand -- Parsing Experiments
 
 🚧 WORK IN PROGRESS 🚧
 
+*SEE [InProgress.md](InProgress.md) for details of which projects are (most) WIP*
+
 ParseLand aims to be a combination of learnings and analyses of assorted parser tools
 and libraries across different language ecosystems - primarily C++, C, Rust, Go, Python,
 but if others prove interesting I'll look into them.
