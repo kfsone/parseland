@@ -86,10 +86,10 @@ Integer <- < SIGN? DIGIT+ >
 String
 	<- < '"' ( '\\' [\"\\A-Za-z0-9] / [^\\\"\n] )* ('"'^close_quote) >
 
-EnumValue    <- < EnumScope ScopeOperator ↑ EnumField >
-EnumScope    <- < Identifier >
-ScopeOperator <- '::'
-EnumField    <- < Identifier >
+QualifiedIdent	<- < EnumScope ScopeOperator ↑ EnumField >
+EnumScope    	<- < Identifier >
+ScopeOperator	<- '::'
+EnumField    	<- < Identifier >
 
 
 # -----------------------------------------------------------------------------
@@ -142,7 +142,7 @@ Scalar
 	/	Float
 	/	Integer
 	/	String
-	/	EnumValue
+	/	QualifiedIdent
 
 Compound <- Object / Array
 
