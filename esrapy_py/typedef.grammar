@@ -37,42 +37,93 @@ int         = <[+-]?[0-9]+>
 qual_ident  = scope::word scope_op member::word  type:\enum
 
 
+# Word, but in the context of an enum member name.
+enum_member = word
+
+# Word, but in the context of a struct field member name.
+field_name = word
+
+# For clarity in the AST, we use 'type_name' to represent identifiers in a type_name context.
+type_name = word
+
+# Struct inheritance is represented as ": <typename>"
+type_parent = parent_op type_name
+
+
 # Productions
 # Note - the start production has to be the last rule defined.
 
-definition = enum_definition | blueprint_definition
+# Definitions allowed: enumeration and user-defined type.
+definition
+    = enum_definition
+    | type_definition
 
 
-enum_definition = 'enum' typename open_group keys:enum_member*opt_comma close_group
-				  type:\enum
+# Enumeration: a named group of constants with unique, incremental values;
+# tagged with {'type': 'enum'}
+enum_definition
+    =   'enum' type_name    type:\enum
+        open_group
+            keys:enum_member*opt_comma
+        close_group
 
-type_definition = 'type' typename type_parent? open_group members:member_definition*opt_comma close_group
-				  type:\struct
 
-typename = word  # simple hoisting for error clarity
-fieldname = word
-enum_member = word # simple hoisting for error clarity
+# User-defined type definition: represents a C-like data structure/C++ POD struct.
+# tagged with {'type': 'struct'}
+type_definition
+    =   'type' type_name    type:\struct
+        type_parent?
+        open_group
+            members:member_definition*opt_comma
+        close_group
 
-type_parent = parent_op typename
 
-member_definition = typename fieldname is_array default:default_value?
+# Type members have a built-in or user-type, and we follow the old C convention
+# where the type is listed first. Fields can be dynamic arrays, denoted by
+# [], but only for user-defined types.
+# Optionally, a default value can be provided, which may be complex if the type
+# is a user-defined type or array.
+member_definition = type_name field_name is_array default:default_value?
 
-is_array = open_array close_array _:\true
-         | _:\false
-         
+# Arity is specified with a pair of braces, but we don't require them to be
+# contiguous: "[]" or "[ /* hello */ ]"
+# Maps to a bool
+# TODO: error when a size is presented, recover.
+is_array
+    =   open_array close_array _:\true
+    |   _:\false
+
+# = <value>
 default_value = equals_op value
 
+# value can be either a scalar (ie a literal), unit ('{}'), an array-of-objects,
+# or an object ('{ field = value, ... }')
 value = scalar_value | compound_value
 
+# scalars are fairly simple
 scalar_value = bool | float | int | string | qual_ident
 
-compound_value = object | is_array
+compound_value = unit | object | is_array
 
-object = open_group members:object_member*opt_comma close_group is_compound:\true
-object_member = fieldname:word equals_op value:value
+unit
+    =   open_group close_group  is_compound:\true is_array:\true  is_unit:\true
 
-array  = open_group elements:array_element+opt_comma close_group is_compound:\true is_array:\true
-array_element = word
+# an 'object' represents a concrete instance of a user-defined type, but also stands
+# in for an empty/defaulted array.
+# e.g. { x = 0, y = 1.0, z = -1 }
+object
+    =   open_group              is_compound:\true is_array:\false is_unit:\false
+            members:object_member+opt_comma
+        close_group
+
+object_member = field_name:word equals_op value:value
+
+array
+    = open_group                is_compound:\true is_array:\true  is_unit:\false
+        elements:array_element+opt_comma
+    close_group is_compound:\true is_array:\true
+
+array_element = object
 
 
 # The final production defines the grammar.
