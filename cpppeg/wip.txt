@@ -1,0 +1,45 @@
+# '↑' is the 'cut' operator which prevents backtracking after this point,
+# forcing the parser to commit to this as the singular resolution for the
+# current text.
+
+# Top-level rule for the grammar is that a document must contain zero or more
+# definitions.
+File	<- Definition*
+
+# Define the whitespace rules
+%whitespace    <- (SPACE / LINE_COMMENT / BLOCK_COMMENT)*
+~SPACE         <- [ \t\r\n]
+~LINE_COMMENT  <- '//' [^\n]*
+~BLOCK_COMMENT <- '/*' (BLOCK_COMMENT / !'*/' .)* '*/'^close_comment
+
+# Define what constitutes a contiguous word, so that the parser can do
+# nice error handling/recovert
+%word       <- [A-Za-z0-9_]+
+
+# We typically don't care about commas, so we should discard them from the AST.
+~CommaSep   <- ','	# don't capture commas
+
+# Declare a macro for lists of things with optional trailing commas.
+List(T)     <- T CommaSep?
+
+# Recovery labels
+enum_members	<- '' { error_message "enum $name must contain at least one member." }
+#close_quote		<- '' { error_message "missing close quote for string literal at end of line -- multiline strings are not allowed."}
+close_comment   <- '' { error_message "unterminated block comment (missing '*/'?)" }
+
+NAME		<- < [A-Za-z_] [A-Za-z0-9_]* >
+
+
+
+Definition <- EnumDefinition / TypeDefinition
+
+EnumDefinition <- 'enum' ↑ $name<NAME> '{' EnumMembers '}'
+EnumMembers <- List(NAME)+^enum_members  # issue enum_members error if missing
+
+TypeDefinition <- 'type' ↑ NAME TypeParent? '{' List(TypeMember)* '}'
+TypeParent <- ':' ↑ NAME
+TypeMember <- TypeName FieldName IsArray? MemberDefault?
+TypeName <- <NAME>
+FieldName <- <NAME>
+IsArray <- 'ARRAY'  # '[' ↑ (integer { error_message "cannot specify array size" })? ']'
+MemberDefault <- 'DEFAULT'  # '=' ↑ Value

@@ -144,13 +144,14 @@ Scalar
 	/	String
 	/	QualifiedIdent
 
-Compound <- Object / Array
+Compound <- Unit / Object / Array
 
-Object <- '{' ObjectMember ObjectMember* '}'
-ObjectMember
-	<- FieldName '=' ↑ Value COMMA?
+# Neiter an array or an object
+Unit <- '{' '}'
 
 Array
-	<- '{' ArrayElement+ '}'
-ArrayElement
-	<- Object COMMA?
+	<- '{' List(Object)+ '}'
+Object
+	<- '{' List(ObjectMember)+ '}'
+ObjectMember
+	<- (FieldName '=' Value)
