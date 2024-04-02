@@ -6,6 +6,8 @@
 
 using namespace kfs;
 
+static constexpr TResult None{};
+
 
 // Because I made things private/protected, we'll need to surface things here.
 struct TestScanner : public Scanner
@@ -61,7 +63,7 @@ TEST(ScannerTest, Construction)
 // it works as advertised.
 TEST(ScannerTest, MakeToken)
 {
-	// Lets check that 'make token' generates sensible looking tokens,
+	// Let's check that 'make token' generates sensible looking tokens,
 	// and shrinks 'current'.
 	TestScanner scanner("ab");
 
@@ -311,7 +313,7 @@ TEST(ScannerTest, ScanNumber)
 	// Scan number takes it as read that the byte at the front of current is numeric,
 	// then scans until it reaches a non-numeric character.
 	// If that character is '.', and it hasn't seen a dot yet, it will continue.
-	// Otherwise it ends on the first non-digit or reaching EOI.
+	// Otherwise, it ends on the first non-digit or reaching EOI.
 	struct PassCase {
 		std::string_view input;
 		std::string_view capture;
@@ -419,6 +421,44 @@ TEST(ScannerTest, ScanWord)
 		EXPECT_EQ(Token::Type::Word, result.token().type_);
 		EXPECT_EQ(c.capture, result.token().source_);
 		EXPECT_EQ(c.remainder, scanner.current());
+	}
+}
+
+
+// Verify get_token_offset works as expected.
+TEST(ScannerTest, GetTokenOffsetNullOpt)
+{
+	// Create a scanner from a sub-string so we can do a controlled check
+	// of outside-of-bounds.
+	std::string_view source = "|little picture|";
+	TestScanner scanner(source.substr(1, source.length() - 2));
+	ASSERT_EQ('l', scanner.front());
+
+	// Try a token whose 'begin' is below the 'begin' of the source substr
+	EXPECT_EQ(std::nullopt, scanner.get_token_offset(Token{Token::Type::Word, source}));
+	// Try a token whose begin is above the end of the source substr
+	EXPECT_EQ(std::nullopt, scanner.get_token_offset(Token{Token::Type::Integer, source.substr(source.length(), 0)}));
+	// Try a token whose begin is within the source substr but whose end is beyond it.
+	EXPECT_EQ(std::nullopt, scanner.get_token_offset({Token{Token::Type::Word, source.substr(1, source.length() - 1)}}));
+	// Try some arbitrary other token unrelated to source.
+	EXPECT_EQ(std::nullopt, scanner.get_token_offset(Token{Token::Type::Float, "3.14"}));
+	// Finally, with an empty string?
+	EXPECT_EQ(std::nullopt, scanner.get_token_offset(Token{Token::Type::Invalid, ""}));
+}
+
+
+// Try some actual token getting.
+TEST(ScannerTest, GetTokenOffset)
+{
+	std::string_view source = "xyz";
+	TestScanner scanner(source);
+
+	for (size_t i = 0; i <= source.length(); ++i)
+	{
+		SCOPED_TRACE(i);
+		auto result = scanner.get_token_offset(Token{Token::Type::Word, source.substr(i, 1)});
+		ASSERT_TRUE(result.has_value());
+		EXPECT_EQ(i, result.value());
 	}
 }
 
@@ -579,7 +619,7 @@ void testWords(char prefix, std::string suffix)
 
 	{
 		SCOPED_TRACE(suffix + "->!");
-		const string source = suffix + "//";
+		const std::string source = suffix + "//";
 		TestScanner scanner(source);
 		const TResult result = scanner.next();
 		ASSERT_TRUE(result.is_token());

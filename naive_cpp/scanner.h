@@ -33,6 +33,13 @@ public:
 	//! an accompanying Token describing the problem text.
 	TResult next();
 
+	//! get_token_offset tries to determine the offset of a particular token. If the token does
+	//! not appear to be from this source document, returns nullopt, otherwise returns the
+	//! offset in bytes of the token from the start of the source.
+	[[nodiscard]]
+	std::optional<size_t> get_token_offset(const Token& token) const noexcept;
+	
+
 protected:
 	string_view		source_		  { };		// Original unmodified source view.
 	string_view		current_	  { };		// Reduced source view as we scan.

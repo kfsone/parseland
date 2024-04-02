@@ -34,6 +34,21 @@ TResult Scanner::unexpected_result() noexcept
 }
 
 
+// Determine if 'token' is from this source document and, if so, calculate its
+// byte offset by abusing stringviews; otherwise, return nullopt.
+std::optional<size_t> Scanner::get_token_offset(const Token& token) const noexcept
+{
+	// MSVC will do some sanity checking if we try to compare begin/end, so pointers it is!
+	const char *outer_begin =       source_.data(), *outer_end =       source_.data() +       source_.length();
+	const char *inner_begin = token.source_.data(), *inner_end = token.source_.data() + token.source_.length();
+	if (outer_begin <= inner_begin && outer_end >= inner_end)
+		return token.source_.data() - source_.data();
+
+	return std::nullopt;
+}
+
+
+// Attempts to identify the next token in the stream.
 TResult Scanner::next()
 {
 	while (!current_.empty())
@@ -207,7 +222,7 @@ TResult Scanner::scan_number()
 // On encountering a +/- sign, optimistically assume it's going to be a number,
 // so the next character will either be a digit which we hand off to scan_number
 // and allow that to deal with finding out it's a float, or we find a '.' and if
-// its going to be a number, it's a float.
+// it's going to be a number, it's a float.
 //
 TResult Scanner::scan_signed_number()
 {
