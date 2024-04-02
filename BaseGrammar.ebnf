@@ -1,4 +1,4 @@
-(* Kfsone's ParseLand "typedef" grammar            *)
+(* kfsone's ParseLand "typedef" grammar            *)
 (* This is a pseudo-ebnf definition of the grammar *)
 (* See https://github.com/kfsone/parseland         *)
 
@@ -70,7 +70,7 @@ parent
     Connection mConnections[] = { { host="skynet" online=true } }
 *)
 member-definition
-  = typename:identifier fieldname:identifier
+  = typename:identifier member-name:identifier
       is_array:has-arity
       default:default-value
 ;
@@ -118,9 +118,9 @@ value
   a small number of varieties that are actually valid in the language.
   
   - An array can only contain objects,
-  - All elements of an object must be fieldname=value pairs,
+  - All elements of an object must be "member-name = value" pairs,
   - An empty array vs an empty object is an unimportant detail at parse,
-    so we'll assume it's an object until we have a coersion.
+    so we'll assume it's an object until we have a coercion.
   
    {}  <- unit object
    {{}} <- array of objects, one in length, with a unit object as that element
@@ -152,7 +152,7 @@ array-element
 
   e.g.
 
-      { name = "Oliver", callsign = "kfsone", friendly = true }
+      { name = "Oliver", alias = "kfsone", friendly = true }
 
   The empty/default object - {} - is also a stand-in for the empty array.
 *)
@@ -160,7 +160,7 @@ object
   = "{" object-member*,? "}"
   ;
 object-member
-  = fieldname:identifier "=" value
+  = member-name:identifier "=" value
   ;
 
 
@@ -224,7 +224,7 @@ string-literal
 
 (* Qualified identifier: To use an enum you must provide the qualified form of the name. *)
 qualified-ident
-  = typename:identifer '::' membername:identifier
+  = typename:identifier '::' member-name:identifier
 ;
 
 
@@ -246,7 +246,7 @@ BLOCK_COMMENT
             (* nested block comment *)
             BLOCK_COMMENT
 
-            (* any non '/' or '*' charaters are fine *)
+            (* any non '/' or '*' characters are fine *)
         |   [^*/]
         |   ('/' (?!'*'))       (* slash so long as not followed by star, that would be '/*' *)
         |   ('*' (?!'/'))       (* star so long as the next isn't '/', that would be '*/' *)

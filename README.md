@@ -15,7 +15,7 @@ tools for Rust.
 (\*1: there are some good parser tools for Rust, but The Old Ways of writing parsers
 and generating abstract syntax trees do not translate well to Rust)
 
-I went thru so many of the parsers for Rust I started to realize that the latest one I
+I went through so many of the parsers for Rust I started to realize that the latest one I
 was trying to just a fork of an earlier one.
 
 Which lead to the [blog post](...) that sparked this project.
@@ -147,7 +147,7 @@ Python.
 
 Thanks to [mingodad](https://github.com/mingodad) for fixing up my pseudo-EBNF and pointing me
 to the awesome [ParserTL Playground](https://mingodad.github.io/parsertl-playground/playground/)
-(select 'Parseland parser' from the drop down) and introducing me to [ParserTL](https://github.com/BenHanson/parsertl17): C++17 modular (combinator?) parser generator.
+(select 'Parseland parser' from the drop-down) and introducing me to [ParserTL](https://github.com/BenHanson/parsertl17): C++17 modular (combinator?) parser generator.
 
 
 
