@@ -11,13 +11,23 @@ set (CMAKE_CXX_STANDARD 20)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
+# We want to distinguish between being 'the' project vs being a dependent of
+# some larger project, so we want to know if we are the top-level project. This
+# is so common it became a built-in variable in CMake 3.21 but we can still
+# determine if with earlier versions
 # credit: https://www.scivision.dev/cmake-project-is-top-level/
 if (CMAKE_VERSION VERSION_LESS 3.21)
   get_property (not_top DIRECTORY PROPERTY PARENT_DIRECTORY)
   if (NOT not_top)
     set (PROJECT_IS_TOP_LEVEL true)
   endif ()
+  unset (not_top)
 endif ()
+
+
+# Declare the project itself.
+project (naive-cpp LANGUAGES CXX VERSION 0.0.3)
+
 
 # Use the PARSELAND_BUILD_TESTS to enable unit tests; enable it by default if we are
 # the top-level project and not someone's library.
@@ -28,8 +38,8 @@ else ()
 endif ()
 message (STATUS "Testing: ${PARSELAND_BUILD_TESTS}")
 
-project (naive-cpp LANGUAGES CXX VERSION 0.0.3)
 
+# Additional cmake odds-and-ends
 include (CMake/build-flags.cmake)
 include (CMake/fmtlib.cmake)
 include (CMake/google-test.cmake)
