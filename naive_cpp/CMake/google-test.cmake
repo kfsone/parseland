@@ -7,6 +7,11 @@ if (PARSELAND_BUILD_TESTS)
 
 	include (FetchContent)
 
+	# Cmake was complaining about FetchContent not having DOWNLOAD_EXTRACT_TIMESTAMP but after
+	# 5 minutes of looping their documentation trying to figure out where it needs setting,
+	# I decided to just turn the warning off.
+	cmake_policy (SET CMP0135 NEW)
+
 	FetchContent_Declare(
 		googletest
 		URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
