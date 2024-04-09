@@ -3,6 +3,14 @@
 #define INCLUDED_KFS_NAIVE_CPP_SCANNER_H
 // Copyright (C) Oliver 'kfsone' Smith, 2024 -- under MIT license terms.
 
+// This is a naive implementation of the "Scanner" - naive in that I focused on
+// getting it to work over being performant or cleverly designed.
+//
+// Constructed with a view of text that must persist as long as the Scanner lives,
+// calling "next()" will return a result containing a Token, an Error (string) or
+// 'None' on end-of-input.
+
+
 #include "token.h"
 #include "tresult.h"
 
@@ -38,7 +46,6 @@ public:
 	//! offset in bytes of the token from the start of the source.
 	[[nodiscard]]
 	std::optional<size_t> get_token_offset(const Token& token) const noexcept;
-	
 
 protected:
 	string_view		source_		  { };		// Original unmodified source view.

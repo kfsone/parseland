@@ -38,7 +38,14 @@ std::vector<kfs::Token> collect_tokens(kfs::Scanner& scanner, bool verbose);
 int main()
 {
 	///TODO: Read a file, maybe memmap it.
-	kfs::Scanner scanner("enum EnumName { A, B C }  enum Bravo { X Y }");
+	kfs::Scanner scanner(R"(
+// test comment
+enum EnumName { A, B C }  enum Bravo { X Y }
+/* test comment */
+enum ConnectionState { DISCONNECTED, CONNECTED, ERROR }
+type Connected { ConnectionState state }
+type Connection : Connected { string name, Users users[] }
+)");
 
 	///NAIVE: We could process the tokens as we go, but that would mean
 	///having some kind of stream wrapper. So for now, the simple route.
@@ -68,15 +75,26 @@ int main()
 
     for (auto it = ast.nodes_.cbegin(); it != ast.nodes_.cend(); ++it)
     {
-        fmt::print("ast node #{}: {}: ", std::distance(ast.nodes_.cbegin(), it), (*it)->node_type());
+        fmt::print("ast node #{}: {}:\n|  ", std::distance(ast.nodes_.cbegin(), it), (*it)->node_type());
         if (auto enum_ptr = dynamic_cast<kfs::EnumDefinition*>(it->get()); enum_ptr != nullptr)
         {
+            fmt::print("name={}: ", enum_ptr->name_.source_);
             for (const auto& child : enum_ptr->members_)
-                fmt::print("'{}', ", child.source_);
+                fmt::print("child={}, ", child.source_);
         }
         else if (auto type_ptr = dynamic_cast<kfs::TypeDefinition*>(it->get()); type_ptr != nullptr)
         {
-            fmt::print("not implemented");
+            fmt::print("name={}: ", type_ptr->name_.source_);
+            if (type_ptr->parent_type_)
+                fmt::print("(derived from {}), ", type_ptr->parent_type_.value().source_);
+
+            if (type_ptr->members_.empty())
+                fmt::print("<no members>");
+            else
+            for (const auto& child: type_ptr->members_)
+                fmt::print("\n|  |  {}'{}' '{}'",
+                           (child->is_array_ ? "[]" : "scalar"),
+                           child->type_name().source_, child->name_.source_);
         }
         else
         {
@@ -122,10 +140,3 @@ std::vector<kfs::Token> collect_tokens(kfs::Scanner& scanner, bool verbose)
 
 	return scanned_tokens;
 }
-
-/*
- * 🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧
- * 🏗️ ACTIVE CONSTRUCTION 👷 It's all a bit chaotic here on - I want to rapidly flesh out use cases so that I can
- * come back and look at them to determine better organization and helpers.
- */
-

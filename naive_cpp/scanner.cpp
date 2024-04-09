@@ -16,6 +16,35 @@ namespace kfs
 const TResult None = TResult{};
 
 
+std::string_view Token::type_to_str(Token::Type type)
+{
+    using namespace std::string_view_literals;
+    using Types = Token::Type;
+    switch (type)
+    {
+        case Types::Word:         return "word"sv;
+        case Types::Float:        return "float value"sv;
+        case Types::Integer:      return "integer value"sv;
+        case Types::String:       return "string literal"sv;
+        case Types::LBrace:       return "open-brace ('{')"sv;
+        case Types::RBrace:       return "close-brace ('}')"sv;
+        case Types::LBracket:     return "open-bracket ('[')"sv;
+        case Types::RBracket:     return "close-bracket (']')"sv;
+        case Types::Equals:       return "equals ('=')"sv;
+        case Types::Scope:        return "scope operator ('::')"sv;
+        case Types::Colon:        return "colon (':')"sv;
+        case Types::Comma:        return "comma (',')"sv;
+        case Types::EndOfInput:   return "end-of-input"sv;
+        case Types::Whitespace:   return "<whitespace>"sv;
+        case Types::LineComment:  return "<line comment>"sv;
+        case Types::OpenComment:  return "open comment ('/*')"sv;
+        case Types::CloseComment: return "close comment ('*/')"sv;
+
+        default:                  return "<invalid token>"sv;
+    }
+}
+
+
 // Helper that creates a token from the current position in the source
 // and advances past the token.
 //
@@ -35,7 +64,7 @@ TResult Scanner::unexpected_result() noexcept
 
 
 // Determine if 'token' is from this source document and, if so, calculate its
-// byte offset by abusing stringviews; otherwise, return nullopt.
+// byte offset by abusing string-views; otherwise, return nullopt.
 std::optional<size_t> Scanner::get_token_offset(const Token& token) const noexcept
 {
 	// MSVC will do some sanity checking if we try to compare begin/end, so pointers it is!
@@ -210,7 +239,7 @@ TResult Scanner::scan_number()
 			continue;
 		// if we see a '.', set is_float to true, and then if it wasn't already set,
 		// allow another series of integers to follow.
-		else if (c == '.' && std::exchange(is_float, true) == false)
+		else if (c == '.' && !std::exchange(is_float, true))
 			continue;
 		// anything else is a stop.
 		break;

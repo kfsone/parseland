@@ -52,11 +52,39 @@ namespace kfs
     };
 
 
+    struct FieldDefinition : public Definition
+    {
+        static PResult make(TokenSequence& ts, Token first);
+
+        bool            is_array_  {false};
+
+        const Token&    type_name() const { return root_; }
+
+        using Definition::Definition;
+        ~FieldDefinition() override = default;
+
+        std::string_view node_type() const override { return "field-definition"; }
+    };
+
+
     //! User-defined type definition.
     struct TypeDefinition : public Definition
     {
         // Factory.
         static PResult make(TokenSequence& ts, Token first);
+
+        // The parent might not be declared at the point we read a child, so
+        // we don't presume to try and store a pointer to the object itself.
+        using Parent = std::optional<Token>;
+        // Ownership and lookup-by-name
+        using OwnedField = std::unique_ptr<FieldDefinition>;
+        using Lookup  = std::map<std::string_view, OwnedField>;
+        // Field order.
+        using Members = std::vector<FieldDefinition*>;
+
+        Parent      parent_type_ {};
+        Members     members_ {};
+        Lookup      lookup_ {};
 
         // Constructor takes the first two tokens - the 'type' keyword and the type name.
         using Definition::Definition;
@@ -64,6 +92,14 @@ namespace kfs
         ~TypeDefinition() override = default;
         // Report that we're a type-definition node.
         std::string_view node_type() const override { return "type"sv; };
+
+        //! Returns TypeMember with the give name if registered, otherwise nullptr.
+        FieldDefinition* lookup(std::string_view key)
+        {
+            if (auto it = lookup_.find(key); it != lookup_.end())
+                return it->second.get();
+            return nullptr;
+        }
     };
 
 }

@@ -33,6 +33,16 @@ namespace kfs
             return {first, true};
         }
 
+        // Take the front-most token, but only if it matches type.
+        std::pair<Token, bool> take_front(Token::Type type)
+        {
+            if (!peek_ahead(type))
+                return {};
+            Token first = *(begin_);
+            std::advance(begin_, 1);
+            return {first, true};
+        }
+
         std::optional<const Token> peek(std::vector<Token>::difference_type n) const
         {
             if (n < 0 || n >= length())

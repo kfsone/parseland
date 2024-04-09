@@ -43,12 +43,17 @@ public:
 	Result(const Result& other) = default;
 	Result(Result&&) = default;
 
-	explicit Result(data_type value, val_t=val_t{})
+    explicit Result(data_type value, val_t=val_t{})
 		: value_(std::forward<data_type>(value))
 	{}
     static self_type Some(data_type value)
     {
         return self_type(std::forward<data_type>(value), val_t{});
+    }
+    template<typename T>
+    static self_type Some(Result<T>&& rhs)
+    {
+        return self_type(rhs.take_value(), val_t{});
     }
 
 	explicit Result(err_type&& error, err_t={})

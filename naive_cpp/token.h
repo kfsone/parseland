@@ -51,6 +51,10 @@ struct Token
 	{
 		return type_ == rhs.type_ && source_ == rhs.source_;
 	}
+
+    // Static helper: maps a type to a human displayable name.
+    //#[derive(Debug)] please
+    static string_view type_to_str(Token::Type type);
 };
 
 
