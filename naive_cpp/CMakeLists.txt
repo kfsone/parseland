@@ -71,9 +71,11 @@ add_executable (
 
 		app-main.cpp
 		app-ast.cpp
+		app-ast-helpers.cpp
 
 		app-fwd.h
 		app-ast.h
+		app-ast-helpers.h
 		app-definitions.h
 		app-tokensequence.h
 )
