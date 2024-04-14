@@ -180,14 +180,6 @@ PResult FieldDefinition::make(TokenSequence& ts, Token member_type_name)
 }
 
 
-PResult not_expected(const TokenSequence& ts, std::string_view after, std::string_view expected)
-{
-    if (ts.is_empty())
-        return unexpected_eoi(fmt::format("{}; expected {}", after, expected));
-    return PResult::Err(fmt::format("unexpected {} after {}, expected {}", Token::type_to_str(ts.front().type_), after, expected));
-}
-
-
 Result<Token> parse_type_parent(TokenSequence& ts, Token type_name)
 {
     // type_parent := ':' word;

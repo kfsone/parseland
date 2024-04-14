@@ -26,6 +26,16 @@ PResult expected_identifier(std::string_view what, std::string_view after, std::
 }
 
 
+//! helper to explain encountering a value that did not match expectations and reports what it
+//! did encounter; distinguishes between unexpected end of input and mismatch.
+PResult not_expected(const TokenSequence& ts, std::string_view after, std::string_view expected)
+{
+    if (ts.is_empty())
+        return unexpected_eoi(fmt::format("{}; expected {}", after, expected));
+    return PResult::Err(fmt::format("unexpected {} after {}, expected {}", Token::type_to_str(ts.front().type_), after, expected));
+}
+
+
 //! helper to attempt take the next keyword on the expectation it's an identifier.
 Result<Token> take_identifier(TokenSequence& ts, std::string_view what, std::string_view after)
 {

@@ -15,6 +15,9 @@ PResult unexpected_eoi(std::string_view);
 // return an error explaining the expectation of an identifier was not met.
 PResult expected_identifier(std::string_view what, std::string_view after, std::string_view actual);
 
+// return an error indicating we got unexpected input (or end of input).
+PResult not_expected(const TokenSequence& ts, std::string_view after, std::string_view expected);
+
 // extract and return the front token from a stream if it is a word (identifier) or else return an 'expected identifier' error.
 Result<Token> take_identifier(TokenSequence& ts, std::string_view what, std::string_view after);
 
