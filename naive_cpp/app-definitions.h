@@ -5,6 +5,8 @@
 #include "app-fwd.h"
 #include "app-ast.h"
 
+#include <list>
+
 namespace kfs
 {
     //! Common base class for all type definitions.
@@ -52,11 +54,97 @@ namespace kfs
     };
 
 
+    //! AST node describing a value, used by Field Definition to describe the default
+    //! value. Can be recursive.
+    struct Value : public ASTNode
+    {
+        // Factory.
+        static PResult make(TokenSequence& ts, Token first);
+
+        using ASTNode::ASTNode;
+    };
+
+
+    //! Simple literal value - a bool, int, float, or string.
+    struct ScalarValue : public Value
+    {
+        enum class Type { Bool, Float, Int, String, EnumField };
+
+        explicit ScalarValue(Token first, Type type) : Value(first), type_(type) {}
+
+        // Factory.
+        static PResult make(TokenSequence& ts, Token first);
+
+        using Value::Value;
+        ~ScalarValue() override = default;
+        Type  type_ {};
+
+        virtual std::string_view node_type() const override { return "astnode"sv; }
+    };
+
+    struct EnumValue : public Value
+    {
+        // Factory.
+        static PResult make(TokenSequence& ts, Token first);
+        using Value::Value;
+        ~EnumValue() override = default;
+
+        Token field_;
+
+        const Token& enum_type() const noexcept { return root_; }
+        const Token& enum_name() const noexcept { return field_; }
+    };
+    
+    //! Represents a the default value of a field within an object instance.
+    //! e.g { x = 1 }
+    struct FieldValuePair : public Value
+    {
+        using Value::Value;
+        ~FieldValuePair() override = default;
+
+        // First token is the identifier naming the field, the second
+        // part is more important - the value itself which may be complex
+        // or simple.
+        Value::OwningPtr value_;
+
+        std::string_view node_type() const override { return "field=value pair"sv; }
+    };
+
+    //! Represents any of the compound types - ie those enclosed in braces ('{', '}'),
+    //! which means we can't always be certain why the type is: we don't know what
+    //! '{ {} }' is until we know what the type of the field holding it is.
+    struct CompoundValue : public Value
+    {
+        // Factory.
+        static PResult make(TokenSequence& ts, Token first);
+
+        using Value::Value;
+
+        enum class Type
+        {
+            Unknown,        // We haven't/couldn't resolve.
+            Unit,           // Empty, so we can't tell.
+            Array,          // Contains objects or units,
+            Object,         // Contains field-value pairs.
+        };
+
+        Type resolved_type_ {Type::Unknown};
+        // First will be the opening brace of the token, so we need to also know
+        // the list.
+        Token last_;
+        // And then all the values in-between.
+        std::list<Value::OwningPtr> values_;
+    };
+
+
+    //! Describes a member field of a type definition.
     struct FieldDefinition : public Definition
     {
         static PResult make(TokenSequence& ts, Token first);
+        using ValuePtr = Value::OwningPtr;
 
         bool            is_array_  {false};
+        ValuePtr        default_   {};
 
         const Token&    type_name() const { return root_; }
 

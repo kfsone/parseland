@@ -24,6 +24,12 @@ namespace kfs
         // Unchecked!
         Token front() const { return *begin_; }
 
+        const Token& advance()
+        {
+            std::advance(begin_, 1);
+            return *(begin_ - 1);
+        }
+
         std::pair<Token, bool> take_front()
         {
             if (is_empty())

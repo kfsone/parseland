@@ -176,6 +176,18 @@ PResult FieldDefinition::make(TokenSequence& ts, Token member_type_name)
     if (is_array.has_value())
         ptr->is_array_ = is_array.value();
 
+    // Check if the next thing is an equals sign, in which case we think we have a default value.
+    auto equals = ts.take_front(Token::Type::Equals);
+    if (equals.second)
+    {
+        if (ts.is_empty())
+            return unexpected_eoi("default value after '='");
+        PResult value = Value::make(ts, ts.front());
+        if (value.is_error())
+            return PResult::Err(value.take_error());
+        ptr->default_ = value.take_value();
+    }
+
     return PResult::Some(std::move(ptr));
 }
 
@@ -264,6 +276,110 @@ PResult Definition::make(TokenSequence &ts, Token first)
 
     return PResult::Err(fmt::format("expected either 'enum', or 'type'; got '{}'", first.source_));
 }
+
+
+// Anticipate there being either a scalar or compound value ahead.
+PResult Value::make(TokenSequence& ts, Token first)
+{
+    // value := <scalar> / <compound>
+    if (first.type_ == Token::Type::LBrace)
+        return CompoundValue::make(ts, first);
+
+    if (auto result = ScalarValue::make(ts, first); !result.is_error())
+    {
+        return result;
+    }
+
+    return PResult::Err(
+        fmt::format("syntax-error: expected a string, number, boolean, enum::label, array, or object; got {} '{}'"sv,
+                    Token::type_to_str(first.type_), first.source_));
+}
+
+
+PResult ScalarValue::make(TokenSequence& ts, Token first)
+{
+    // scalar := 'true' / 'false' / 'null' / <number> / <string>
+    switch (first.type_)
+    {
+    case Token::Type::Word:
+        if (first.source_ == "true"sv || first.source_ == "false"sv)
+            return PResult::Some(std::make_unique<ScalarValue>(ts.advance(), Type::Bool));
+
+        if (ts.peek(1) && ts.peek(1).value().type_ == Token::Type::Scope)
+        {
+            auto result = EnumValue::make(ts, first);
+            if (!result.is_error())
+                return result;
+        }
+        break;
+
+    case Token::Type::Float:
+        return PResult::Some(std::make_unique<ScalarValue>(ts.advance(), Type::Float));
+
+    case Token::Type::Integer:
+        return PResult::Some(std::make_unique<ScalarValue>(ts.advance(), Type::Int));
+
+    case Token::Type::String:
+        return PResult::Some(std::make_unique<ScalarValue>(ts.advance(), Type::String));
+
+    default:
+        break;
+    }
+
+    return PResult::Err("expected a scalar value");
+}
+
+
+PResult CompoundValue::make(TokenSequence& ts, Token first)
+{
+    // compound := '{' ( <string> ':' <value> ',' )* '}';
+    if (first.type_ != Token::Type::LBrace)
+        return PResult::Err("expected a compound value");
+
+    auto ptr = std::make_unique<CompoundValue>(ts.advance());
+    if (auto result = ts.take_front(Token::Type::RBrace); result.second)
+    {
+        ptr->resolved_type_ = Type::Unit;
+        return PResult::Some(std::move(ptr));
+    }
+
+    auto result = process_list(
+            "compound value", ts, first,
+            [&ptr] (TokenSequence& ts, Token value_first_) -> PResult {
+                auto value = Value::make(ts, value_first_);
+                if (value.is_error())
+                    return value;
+
+                // Add the key-value pair to the compound value.
+                ptr->values_.emplace_back(dynamic_cast<Value*>(value.take_value().release()));
+
+                return PResult::None();
+            }
+    );
+
+    if (result.is_error())
+        return PResult::Err(fmt::format("compound value: {}", result.error()));
+
+    return PResult::Some(std::move(ptr));
+
+}
+
+
+PResult EnumValue::make(TokenSequence& ts, Token first)
+{
+    ts.advance();  // skip the first
+    auto scoper = ts.take_front(Token::Type::Scope);
+    if (!scoper.second)
+        return not_expected(ts, "enum class name", "scope operator ('::')");
+    auto member = take_identifier(ts, "enum member name", "scope operator ('::')");
+    if (!member.is_value())
+        return PResult::Err(member.take_error());
+    
+    auto ptr = std::make_unique<EnumValue>(first);
+    ptr->field_ = member.value();
+
+    return PResult::Some(std::move(ptr));
+}         
 
 
 }
