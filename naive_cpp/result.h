@@ -39,9 +39,12 @@ public:
 	constexpr Result() = default;
     static self_type None()  { return self_type(); }
 
+    // Copy and move operations.
 	~Result() = default;
-	Result(const Result& other) = default;
+	constexpr Result(const Result&) = default;
 	Result(Result&&) = default;
+    constexpr Result& operator = (const Result&) = default;
+    Result& operator = (Result&&) = default;
 
     explicit Result(data_type value, val_t=val_t{})
 		: value_(std::forward<data_type>(value))

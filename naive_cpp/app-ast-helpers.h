@@ -4,6 +4,7 @@
 
 #include "app-ast.h"
 
+#include <functional>
 #include <string_view>
 
 namespace kfs

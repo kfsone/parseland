@@ -84,7 +84,7 @@ enum EnumName { A, B C }  enum Bravo { X Y }
 /* test comment */
 enum ConnectionState { DISCONNECTED, CONNECTED, ERROR }
 type Connected { ConnectionState state = ConnectionState :: DISCONNECTED}
-type Connection : Connected { string name, Users users[] = {} }
+type Connection : Connected { string name, Users users[] = { { x=1, y=1} } }
 )");
 
 	///NAIVE: We could process the tokens as we go, but that would mean

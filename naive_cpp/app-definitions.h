@@ -21,12 +21,10 @@ namespace kfs
         explicit Definition(Token first, Token name) : ASTNode(first), name_(name) {}
         // Dtor needs to be virtual.
         ~Definition() override = default;
-        // do not implement the node_type method, we are not concrete
-        std::string_view node_type() const override = 0;
     };
 
     //! Enum type definition.
-    struct EnumDefinition : public Definition
+    struct EnumDefinition final : public Definition
     {
         // Factory.
         static PResult make(TokenSequence& ts, Token first);
@@ -42,6 +40,7 @@ namespace kfs
         // Dtor needs to be virtual.
         ~EnumDefinition() override = default;
         // Report that we're an enum node
+        [[nodiscard]]
         std::string_view node_type() const override { return "enum"sv; }
 
         //! Returns the value that the enumerator would resolve to if the name exists, otherwise nullopt.
@@ -66,7 +65,7 @@ namespace kfs
 
 
     //! Simple literal value - a bool, int, float, or string.
-    struct ScalarValue : public Value
+    struct ScalarValue final : public Value
     {
         enum class Type { Bool, Float, Int, String, EnumField };
 
@@ -79,10 +78,12 @@ namespace kfs
         ~ScalarValue() override = default;
         Type  type_ {};
 
-        virtual std::string_view node_type() const override { return "astnode"sv; }
+        [[nodiscard]]
+        std::string_view node_type() const override { return "scalar value"sv; }
     };
 
-    struct EnumValue : public Value
+
+    struct EnumValue final : public Value
     {
         // Factory.
         static PResult make(TokenSequence& ts, Token first);
@@ -91,34 +92,52 @@ namespace kfs
 
         Token field_;
 
+        [[nodiscard]]
+        std::string_view node_type() const override { return "scoped enum"sv; }
+
+        [[nodiscard]]
         const Token& enum_type() const noexcept { return root_; }
+        [[nodiscard]]
         const Token& enum_name() const noexcept { return field_; }
     };
-    
+
+
     //! Represents a the default value of a field within an object instance.
     //! e.g { x = 1 }
-    struct FieldValuePair : public Value
+    struct FieldValue final : public Value
     {
+        // Factory.
+        static PResult make(TokenSequence& ts, Token first);
+
         using Value::Value;
-        ~FieldValuePair() override = default;
+        ~FieldValue() override = default;
 
         // First token is the identifier naming the field, the second
         // part is more important - the value itself which may be complex
         // or simple.
         Value::OwningPtr value_;
 
-        std::string_view node_type() const override { return "field=value pair"sv; }
+        [[nodiscard]]
+        std::string_view node_type() const override { return "object member value"sv; }
+
+        [[nodiscard]]
+        const Token& field_name() const noexcept { return root_; }
+        [[nodiscard]]
+        const Value* field_value() const noexcept { return value_->as<Value*>(); }
     };
+
 
     //! Represents any of the compound types - ie those enclosed in braces ('{', '}'),
     //! which means we can't always be certain why the type is: we don't know what
     //! '{ {} }' is until we know what the type of the field holding it is.
-    struct CompoundValue : public Value
+    struct CompoundValue final : public Value
     {
         // Factory.
         static PResult make(TokenSequence& ts, Token first);
 
+        // std::list stops us being a constexpr in c++17
         using Value::Value;
+        explicit CompoundValue(const kfs::Token& root) : Value(root) {}
 
         enum class Type
         {
@@ -129,16 +148,25 @@ namespace kfs
         };
 
         Type resolved_type_ {Type::Unknown};
+
+        [[nodiscard]]
+        bool object_or_unit() const noexcept { return resolved_type_ == Type::Object || resolved_type_ == Type::Unit; }
+        [[nodiscard]]
+        bool array_or_unit()  const noexcept { return resolved_type_ == Type::Array  || resolved_type_ == Type::Unit; }
+
         // First will be the opening brace of the token, so we need to also know
         // the list.
         Token last_;
         // And then all the values in-between.
         std::list<Value::OwningPtr> values_;
+
+        [[nodiscard]]
+        std::string_view node_type() const override { return "compound"sv; }
     };
 
 
     //! Describes a member field of a type definition.
-    struct FieldDefinition : public Definition
+    struct FieldDefinition final : public Definition
     {
         static PResult make(TokenSequence& ts, Token first);
         using ValuePtr = Value::OwningPtr;
@@ -146,17 +174,19 @@ namespace kfs
         bool            is_array_  {false};
         ValuePtr        default_   {};
 
-        const Token&    type_name() const { return root_; }
-
         using Definition::Definition;
         ~FieldDefinition() override = default;
 
-        std::string_view node_type() const override { return "field-definition"; }
+        [[nodiscard]]
+        const Token&    type_name() const { return root_; }
+
+        [[nodiscard]]
+        std::string_view node_type() const override { return "field-definition"sv; }
     };
 
 
     //! User-defined type definition.
-    struct TypeDefinition : public Definition
+    struct TypeDefinition final : public Definition
     {
         // Factory.
         static PResult make(TokenSequence& ts, Token first);
@@ -178,7 +208,9 @@ namespace kfs
         using Definition::Definition;
         // Dtor needs to be virtual.
         ~TypeDefinition() override = default;
+
         // Report that we're a type-definition node.
+        [[nodiscard]]
         std::string_view node_type() const override { return "type"sv; };
 
         //! Returns TypeMember with the give name if registered, otherwise nullptr.
